@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Hand Cricket — Play vs Computer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏏</text></svg>" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="floodlights" aria-hidden="true">
+  <span></span><span></span><span></span><span></span>
+</div>
+
+<main id="app">
+
+  <!-- ============ HOME SCREEN ============ -->
+  <section class="screen active" id="screen-home">
+    <div class="home-top">
+      <div class="brand">
+        <span class="brand-ball">🏏</span>
+        <div>
+          <h1>HAND<em>CRICKET</em></h1>
+          <p class="tag">no bat, no ball, just your hand &amp; nerve</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="player-card">
+      <div class="avatar" id="home-avatar">V</div>
+      <div class="player-meta">
+        <input id="player-name" maxlength="18" value="Vaibhav" spellcheck="false" />
+        <div class="stat-row">
+          <span id="stat-played">0 played</span>
+          <span class="dot">•</span>
+          <span id="stat-won">0 won</span>
+          <span class="dot">•</span>
+          <span id="stat-best">best 0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="menu-cards">
+      <button class="menu-card menu-card--live" data-action="go-mode">
+        <div class="menu-card-text">
+          <h2>Play vs Computer</h2>
+          <p>Practice your shot-picking against the house AI</p>
+        </div>
+        <span class="menu-card-icon">🤖</span>
+      </button>
+
+      <button class="menu-card menu-card--locked" disabled>
+        <div class="menu-card-text">
+          <h2>Online Multiplayer</h2>
+          <p>Coming soon — challenge real players</p>
+        </div>
+        <span class="menu-card-icon">🌐</span>
+      </button>
+
+      <button class="menu-card menu-card--locked" disabled>
+        <div class="menu-card-text">
+          <h2>Squad vs Squad</h2>
+          <p>Coming soon — team up and bat together</p>
+        </div>
+        <span class="menu-card-icon">👥</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ MATCH SETTINGS ============ -->
+  <section class="screen" id="screen-settings">
+    <button class="back-btn" data-action="go-home">← Back</button>
+    <h2 class="screen-title">Set up the match</h2>
+
+    <div class="setting-row">
+      <label for="sel-overs">Overs</label>
+      <select id="sel-overs">
+        <option value="1">1 over</option>
+        <option value="2">2 overs</option>
+        <option value="5" selected>5 overs</option>
+        <option value="10">10 overs</option>
+        <option value="20">20 overs</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="sel-wickets">Wickets</label>
+      <select id="sel-wickets">
+        <option value="1">1 wicket</option>
+        <option value="2">2 wickets</option>
+        <option value="3">3 wickets</option>
+        <option value="5" selected>5 wickets</option>
+        <option value="10">10 wickets</option>
+      </select>
+    </div>
+
+    <div class="setting-row">
+      <label for="sel-difficulty">Computer difficulty</label>
+      <select id="sel-difficulty">
+        <option value="easy">Easy — plays random</option>
+        <option value="normal" selected>Normal</option>
+        <option value="hard">Hard — reads your habits</option>
+      </select>
+    </div>
+
+    <button class="primary-btn" data-action="go-toss">Continue to toss</button>
+  </section>
+
+  <!-- ============ TOSS ============ -->
+  <section class="screen" id="screen-toss">
+    <h2 class="screen-title">Toss time</h2>
+    <p class="screen-sub">Call it in the air</p>
+
+    <div class="coin-wrap">
+      <div class="coin" id="coin">
+        <div class="coin-face coin-heads">H</div>
+        <div class="coin-face coin-tails">T</div>
+      </div>
+    </div>
+
+    <div class="call-row" id="call-row">
+      <button class="call-btn" data-call="heads">Heads</button>
+      <button class="call-btn" data-call="tails">Tails</button>
+    </div>
+
+    <p class="toss-result" id="toss-result"></p>
+
+    <div class="bat-bowl-row hidden" id="bat-bowl-row">
+      <p class="screen-sub">You won the toss — choose:</p>
+      <div class="call-row">
+        <button class="call-btn" data-choice="bat">🏏 Bat first</button>
+        <button class="call-btn" data-choice="bowl">🤾 Bowl first</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GAMEPLAY ============ -->
+  <section class="screen" id="screen-game">
+    <div class="scoreboard">
+      <div class="team">
+        <span class="team-tag" id="team-a-tag">Computer</span>
+        <span class="team-role" id="team-a-role"></span>
+      </div>
+      <div class="score-center">
+        <div class="big-score" id="big-score">0/0</div>
+        <div class="overs-line" id="overs-line">0.0 / 5.0 ov</div>
+      </div>
+      <div class="team">
+        <span class="team-tag" id="team-b-tag">You</span>
+        <span class="team-role" id="team-b-role"></span>
+      </div>
+    </div>
+
+    <p class="target-line hidden" id="target-line"></p>
+    <p class="innings-banner" id="innings-banner">Welcome. You are batting.</p>
+
+    <div class="hands-arena">
+      <div class="hand-block">
+        <div class="hand-emoji" id="hand-a">✊</div>
+        <span class="hand-label" id="hand-a-label">Computer</span>
+      </div>
+      <div class="vs-x">✕</div>
+      <div class="hand-block">
+        <div class="hand-emoji" id="hand-b">✊</div>
+        <span class="hand-label" id="hand-b-label">You</span>
+      </div>
+    </div>
+
+    <p class="pick-prompt">Pick your number</p>
+    <div class="ball-row" id="ball-row">
+      <button class="ball" data-n="0">0</button>
+      <button class="ball" data-n="1">1</button>
+      <button class="ball" data-n="2">2</button>
+      <button class="ball" data-n="3">3</button>
+      <button class="ball" data-n="4">4</button>
+      <button class="ball" data-n="5">5</button>
+      <button class="ball" data-n="6">6</button>
+    </div>
+
+    <div class="this-over" id="this-over"></div>
+  </section>
+
+  <!-- ============ RESULT ============ -->
+  <section class="screen" id="screen-result">
+    <div class="result-card">
+      <span class="result-emoji" id="result-emoji">🏆</span>
+      <h2 id="result-title">You won!</h2>
+      <p id="result-sub">Computer 42/5 — You 43/2</p>
+
+      <div class="result-stats">
+        <div><span id="rs-innings1">—</span><label>Innings 1</label></div>
+        <div><span id="rs-innings2">—</span><label>Innings 2</label></div>
+      </div>
+
+      <div class="result-actions">
+        <button class="primary-btn" data-action="rematch">Play again</button>
+        <button class="ghost-btn" data-action="go-home">Main menu</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- toast for wicket / six / four -->
+<div class="toast" id="toast"></div>
+
+<script src="script.js"></script>
+</body>
+</html>
