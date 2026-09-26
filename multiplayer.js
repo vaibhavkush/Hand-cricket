@@ -21,6 +21,7 @@
     roomUnsub: null,
     lastRenderedBallSeq: -1,
     lastStatus: null,
+    statsRecordedForCode: null,
   };
 
   function setStatusLine(msg) {
@@ -69,9 +70,20 @@
     return (el && el.value ? el.value.trim() : '') || 'Player';
   }
 
+  /* ---------------- de-dupe: remember THIS browser's player id per room code ---------------- */
+  function roomPlayerKey(code) { return `handcricket_room_${code}_playerid`; }
+  function getSavedPlayerId(code) {
+    try { return localStorage.getItem(roomPlayerKey(code)); } catch (e) { return null; }
+  }
+  function savePlayerId(code, id) {
+    try { localStorage.setItem(roomPlayerKey(code), id); } catch (e) { /* ignore */ }
+  }
+
   /* ---------------- create / join ---------------- */
   async function createRoom() {
     if (!initFirebaseIfNeeded()) return;
+    const btn = document.querySelector('[data-action="online-create"]');
+    if (btn) btn.disabled = true;
     setStatusLine('Creating room…');
     const overs = parseInt(qs('#sel-online-overs').value, 10) || 2;
     const wickets = parseInt(qs('#sel-online-wickets').value, 10) || 2;
@@ -87,11 +99,15 @@
       await MP.db.ref(`rooms/${code}/players/${playerId}`).set({
         name, joinedAt: firebase.database.ServerValue.TIMESTAMP,
       });
+      savePlayerId(code, playerId);
       MP.roomCode = code; MP.playerId = playerId; MP.playerName = name; MP.isHost = true;
+      MP.statsRecordedForCode = null;
       enterLobby();
     } catch (e) {
       console.error(e);
       setStatusLine('Could not create room: ' + e.message + ' (check your Realtime Database rules)');
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -99,11 +115,31 @@
     if (!initFirebaseIfNeeded()) return;
     const code = (qs('#online-join-code').value || '').trim().toUpperCase();
     if (!code) { setStatusLine('Enter a room code first.'); return; }
+    const btn = document.querySelector('[data-action="online-join"]');
+    if (btn) btn.disabled = true;
     setStatusLine('Joining…');
     try {
       const metaSnap = await MP.db.ref(`rooms/${code}/meta`).once('value');
       const meta = metaSnap.val();
       if (!meta) { setStatusLine('No room found with that code.'); return; }
+
+      // Already joined this exact room earlier from this browser (or clicked Join
+      // twice) — reuse the same player id instead of adding a second entry.
+      const existingId = getSavedPlayerId(code);
+      if (existingId) {
+        const existingSnap = await MP.db.ref(`rooms/${code}/players/${existingId}`).once('value');
+        if (existingSnap.exists()) {
+          const freshName = currentPlayerNameFromHome();
+          if (existingSnap.val().name !== freshName) {
+            await MP.db.ref(`rooms/${code}/players/${existingId}/name`).set(freshName);
+          }
+          MP.roomCode = code; MP.playerId = existingId; MP.playerName = freshName; MP.isHost = (meta.hostId === existingId);
+          MP.statsRecordedForCode = null;
+          enterLobby();
+          return;
+        }
+      }
+
       if (meta.status !== 'lobby') { setStatusLine('That match has already started.'); return; }
 
       const playerId = randomId();
@@ -111,11 +147,15 @@
       await MP.db.ref(`rooms/${code}/players/${playerId}`).set({
         name, joinedAt: firebase.database.ServerValue.TIMESTAMP,
       });
+      savePlayerId(code, playerId);
       MP.roomCode = code; MP.playerId = playerId; MP.playerName = name; MP.isHost = false;
+      MP.statsRecordedForCode = null;
       enterLobby();
     } catch (e) {
       console.error(e);
       setStatusLine('Could not join room: ' + e.message);
+    } finally {
+      if (btn) btn.disabled = false;
     }
   }
 
@@ -327,6 +367,7 @@
   function renderOnlineResult(room) {
     showScreenSafe('online-result');
     const m = room.match;
+    const oppId = opponentId(room);
     const secondBattingId = m.battingId; // after the innings-2 swap this is who batted last
     const firstBattingId = m.firstBattingId;
     const firstRuns = m.firstInningsRuns;
@@ -349,6 +390,21 @@
     qs('#mp-result-emoji').textContent = iWon ? '🏆' : '😔';
     qs('#mp-result-title').textContent = title;
     qs('#mp-result-sub').textContent = `${nameOf(room, firstBattingId)} ${firstRuns}/${m.firstInningsWkts} — ${nameOf(room, secondBattingId)} ${secondRuns}/${secondScore.wkts}`;
+
+    // record multiplayer stats exactly once per finished match
+    if (MP.statsRecordedForCode !== MP.roomCode && typeof window.HC_recordMatchStats === 'function') {
+      MP.statsRecordedForCode = MP.roomCode;
+      const myScore = m.score[MP.playerId] || { runs: 0, wkts: 0, balls: 0 };
+      const oppScore = m.score[oppId] || { runs: 0, wkts: 0, balls: 0 };
+      const outcome = title.includes('tie') ? 'tie' : (iWon ? 'win' : 'lose');
+      window.HC_recordMatchStats('multiplayer', {
+        outcome,
+        runsScored: myScore.runs,
+        ballsFaced: myScore.balls,
+        wicketsTaken: oppScore.wkts,
+        runsConceded: oppScore.runs,
+      });
+    }
   }
 
   /* ---------------- misc ---------------- */
@@ -361,6 +417,7 @@
   function leaveRoom() {
     detachRoomListener();
     MP.roomCode = null; MP.playerId = null; MP.isHost = false; MP.lastRenderedBallSeq = -1;
+    MP.statsRecordedForCode = null;
   }
   function copyRoomCodeMP() {
     if (!MP.roomCode) return;

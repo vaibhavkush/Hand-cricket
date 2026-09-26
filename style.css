@@ -316,11 +316,11 @@ body.theme-light .floodlights{display:none;}
 .result-stats label{font-size:.68rem; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.5px;}
 
 /* ---------- STATS SCREEN ---------- */
-.tabs{display:flex; gap:8px; margin-bottom:16px;}
+.tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;}
 .tab{
-  flex:1; padding:10px; border-radius:12px; border:1px solid var(--glass-border);
+  flex:1 1 auto; min-width:72px; padding:10px 8px; border-radius:12px; border:1px solid var(--glass-border);
   background:var(--glass); color:var(--ink-dim); font-family:'Rajdhani',sans-serif;
-  font-weight:700; cursor:pointer; font-size:.9rem;
+  font-weight:700; cursor:pointer; font-size:.85rem;
 }
 .tab.active{background:linear-gradient(135deg,var(--crimson-bright),var(--crimson)); color:#fff; border-color:transparent;}
 .stat-summary{

@@ -94,26 +94,75 @@ const sfx = {
   win: () => { tone(523, 0, 0.12); tone(659, 0.12, 0.12); tone(784, 0.24, 0.25); },
 };
 
-/* ---------------- persistent stats (per browser, per difficulty) ---------------- */
-const STATS_KEY = 'handcricket_stats_v2';
+/* ---------------- persistent stats (per browser) ---------------- */
+const STATS_KEY = 'handcricket_stats_v3';
+const STAT_BUCKETS = ['easy', 'normal', 'hard', 'tournamentAI', 'multiplayer'];
 function emptyModeStats() {
-  return { played: 0, won: 0, lost: 0, tied: 0, totalRuns: 0, totalWickets: 0, bestScore: 0, bestBowlWkts: 0, bestBowlRuns: 0 };
+  return {
+    played: 0, won: 0, lost: 0, tied: 0,
+    totalRuns: 0, ballsFaced: 0, totalWickets: 0,
+    bestScore: 0, bestBowlWkts: 0, bestBowlRuns: 0,
+  };
+}
+function emptyTournamentExtra() {
+  return { tournamentsPlayed: 0, tournamentsWon: 0 };
 }
 function loadStatsV2() {
   try {
     const raw = localStorage.getItem(STATS_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    return {
-      easy: Object.assign(emptyModeStats(), parsed && parsed.easy),
-      normal: Object.assign(emptyModeStats(), parsed && parsed.normal),
-      hard: Object.assign(emptyModeStats(), parsed && parsed.hard),
-    };
+    const out = {};
+    STAT_BUCKETS.forEach((b) => { out[b] = Object.assign(emptyModeStats(), parsed && parsed[b]); });
+    out.tournamentAI = Object.assign(out.tournamentAI, emptyTournamentExtra(), parsed && parsed.tournamentAI);
+    return out;
   } catch (e) {
-    return { easy: emptyModeStats(), normal: emptyModeStats(), hard: emptyModeStats() };
+    const out = {};
+    STAT_BUCKETS.forEach((b) => { out[b] = emptyModeStats(); });
+    out.tournamentAI = Object.assign(out.tournamentAI, emptyTournamentExtra());
+    return out;
   }
 }
 function saveStatsV2(s) {
   try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ }
+}
+function strikeRateOf(ms) {
+  return ms.ballsFaced > 0 ? ((ms.totalRuns / ms.ballsFaced) * 100).toFixed(1) : '0.0';
+}
+
+/* Shared stat recorder — used by the local vs-computer engine below AND by
+   multiplayer.js (via window.HC_recordMatchStats) for online 1v1 matches. */
+function recordMatchStats(bucket, { outcome, runsScored, ballsFaced, wicketsTaken, runsConceded }) {
+  const stats = loadStatsV2();
+  const ms = stats[bucket] || (stats[bucket] = emptyModeStats());
+  ms.played += 1;
+  if (outcome === 'win') ms.won += 1;
+  else if (outcome === 'lose') ms.lost += 1;
+  else ms.tied += 1;
+  ms.totalRuns += runsScored;
+  ms.ballsFaced += ballsFaced;
+  ms.totalWickets += wicketsTaken;
+  if (runsScored > ms.bestScore) ms.bestScore = runsScored;
+  if (
+    wicketsTaken > ms.bestBowlWkts ||
+    (wicketsTaken === ms.bestBowlWkts && ms.bestBowlWkts > 0 && runsConceded < ms.bestBowlRuns) ||
+    ms.played === 1
+  ) {
+    ms.bestBowlWkts = wicketsTaken;
+    ms.bestBowlRuns = runsConceded;
+  }
+  saveStatsV2(stats);
+  return stats;
+}
+window.HC_recordMatchStats = recordMatchStats;
+function recordTournamentStarted() {
+  const stats = loadStatsV2();
+  stats.tournamentAI.tournamentsPlayed += 1;
+  saveStatsV2(stats);
+}
+function recordTournamentWon() {
+  const stats = loadStatsV2();
+  stats.tournamentAI.tournamentsWon += 1;
+  saveStatsV2(stats);
 }
 
 function renderHomeStats() {
@@ -127,30 +176,59 @@ function renderHomeStats() {
 }
 renderHomeStats();
 
+const STAT_TAB_LABELS = { easy: 'Easy', normal: 'Normal', hard: 'Hard', tournamentAI: 'Tournament', multiplayer: 'Multiplayer' };
 let statsActiveTab = 'easy';
 function renderStatsScreen() {
   const s = loadStatsV2()[statsActiveTab];
   $$('#stats-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.diff === statsActiveTab));
   const winPct = s.played ? Math.round((s.won / s.played) * 100) : 0;
-  $('#stat-summary').textContent = `Matches Won: ${s.won} off ${s.played} (${winPct}%)`;
+  $('#stat-summary').textContent = `${STAT_TAB_LABELS[statsActiveTab]} — Matches Won: ${s.won} off ${s.played} (${winPct}%)`;
   const bowlFigure = s.played ? `${s.bestBowlWkts}-${s.bestBowlRuns}` : '—';
+  const extraTournamentBox = statsActiveTab === 'tournamentAI'
+    ? `<div class="stat-box"><strong>${s.tournamentsWon}/${s.tournamentsPlayed}</strong><span>Tournaments Won</span></div>`
+    : '';
   $('#stat-grid').innerHTML = `
     <div class="stat-box"><strong>${s.played}</strong><span>Played</span></div>
     <div class="stat-box"><strong>${s.won}-${s.lost}-${s.tied}</strong><span>Win-Loss-Tied</span></div>
     <div class="stat-box"><strong>${s.bestScore}</strong><span>Best Score</span></div>
     <div class="stat-box"><strong>${s.totalRuns}</strong><span>Total Runs</span></div>
+    <div class="stat-box"><strong>${strikeRateOf(s)}</strong><span>Strike Rate</span></div>
     <div class="stat-box"><strong>${bowlFigure}</strong><span>Best Bowling</span></div>
     <div class="stat-box"><strong>${s.totalWickets}</strong><span>Total Wickets</span></div>
+    ${extraTournamentBox}
   `;
 }
 
-/* keep avatar initial + name in sync */
+/* keep avatar initial + name in sync, and persist the player's chosen name
+   permanently in this browser (so a shared link never shows "Vaibhav" to
+   someone else, and a returning visitor's own name sticks around) */
+const NAME_KEY = 'handcricket_playername';
 const nameInput = $('#player-name');
+function randomGuestName() {
+  return 'Guest' + Math.floor(1000 + Math.random() * 9000);
+}
+(function initPlayerName() {
+  let saved = null;
+  try { saved = localStorage.getItem(NAME_KEY); } catch (e) { /* ignore */ }
+  if (!saved) {
+    saved = randomGuestName();
+    try { localStorage.setItem(NAME_KEY, saved); } catch (e) { /* ignore */ }
+  }
+  nameInput.value = saved;
+})();
+function persistPlayerName() {
+  const v = (nameInput.value || '').trim();
+  if (!v) return;
+  try { localStorage.setItem(NAME_KEY, v); } catch (e) { /* ignore */ }
+}
 function refreshAvatar() {
   const v = (nameInput.value || 'P').trim();
   $('#home-avatar').textContent = v.charAt(0).toUpperCase() || 'P';
+  persistPlayerName();
 }
 nameInput.addEventListener('input', refreshAvatar);
+nameInput.addEventListener('blur', persistPlayerName);
+nameInput.addEventListener('change', persistPlayerName);
 refreshAvatar();
 function playerName() { return (nameInput.value || 'You').trim() || 'You'; }
 
@@ -179,9 +257,9 @@ function freshState(overs, wickets, difficulty, opponentName) {
 }
 
 const DIFFICULTY_NOTES = {
-  easy: 'Mostly random picks — a good warm-up difficulty.',
-  normal: 'Balanced — reacts a little to your habits over the innings.',
-  hard: 'Studies your last several picks AND your overall habits. Repeating the same number often is the fastest way to lose — mix it up.',
+  easy: 'Very forgiving — rarely takes wickets, innings usually go the distance.',
+  normal: 'Balanced — a fair, competitive game either way could go.',
+  hard: 'Ruthless — studies your picks and adapts fast. Winning takes real variation in your numbers.',
 };
 function updateDifficultyNote() {
   const diff = readSelectValue('sel-difficulty', 'normal');
@@ -409,41 +487,68 @@ function renderThisOver() {
   });
 }
 
-/* ---- adaptive AI ---- */
-const BLEND_BY_DIFFICULTY = { easy: 0.15, normal: 0.45, hard: 0.85 };
+/* ---- adaptive AI ----
+   Bots only ever pick from {3,4,5,6} — never 0, 1 or 2.
+   Bowling and batting each have their own strategy per difficulty:
+     'random'  = ignores the human's pattern entirely
+     'avoid'   = steers AWAY from the human's likely number
+                 (forgiving when bowling = fewer cheap wickets;
+                  safe when batting = hard to dismiss)
+     'predict' = steers TOWARD the human's likely number
+                 (aggressive wicket-hunting when bowling;
+                  risky/exposed when batting)
+*/
+const BOT_POOL = [3, 4, 5, 6];
+const RECENCY_WINDOW = { easy: 3, normal: 4, hard: 8 };
+const BOT_BOWL_STRATEGY = {
+  easy:   { mode: 'avoid',   chance: 0.65 }, // rarely hunts wickets -> long, forgiving innings
+  normal: { mode: 'avoid',   chance: 0.35 }, // a fair, competitive game
+  hard:   { mode: 'predict', chance: 0.92 }, // hunts your pattern aggressively
+};
+const BOT_BAT_STRATEGY = {
+  easy:   { mode: 'random',  chance: 0 },    // no special survival instinct
+  normal: { mode: 'avoid',   chance: 0.30 }, // moderately hard to dismiss
+  hard:   { mode: 'avoid',   chance: 0.92 }, // very hard to dismiss
+};
 
-function buildWeights(freqArr, recentArr) {
-  const w = new Array(7).fill(1);
-  for (let i = 0; i < 7; i++) w[i] += freqArr[i] * 1.0;
+function randomBotNumber() {
+  return BOT_POOL[Math.floor(Math.random() * BOT_POOL.length)];
+}
+function buildPoolWeights(freqArr, recentArr) {
+  const w = BOT_POOL.map((n) => 1 + freqArr[n]);
   recentArr.forEach((n, idx) => {
-    const recency = 1 + idx * 0.35; // later entries (more recent) weigh more
-    w[n] += recency;
+    const poolIdx = BOT_POOL.indexOf(n);
+    if (poolIdx === -1) return; // human's pick wasn't in the bot's own range — nothing to weight
+    const recency = 1 + idx * 0.5; // later entries (more recent) weigh a lot more
+    w[poolIdx] += recency;
   });
   return w;
 }
-function weightedSample(weights) {
+function weightedPoolSample(weights) {
   const total = weights.reduce((a, b) => a + b, 0);
   let r = Math.random() * total;
   for (let i = 0; i < weights.length; i++) {
     r -= weights[i];
-    if (r <= 0) return i;
+    if (r <= 0) return BOT_POOL[i];
   }
-  return weights.length - 1;
+  return BOT_POOL[weights.length - 1];
 }
 function pickComputerNumber(isPlayerBatting) {
-  const blend = BLEND_BY_DIFFICULTY[state.difficulty] || 0.4;
-  if (Math.random() > blend) return Math.floor(Math.random() * 7);
+  const diff = state.difficulty;
+  const strategy = isPlayerBatting ? (BOT_BOWL_STRATEGY[diff] || BOT_BOWL_STRATEGY.normal) : (BOT_BAT_STRATEGY[diff] || BOT_BAT_STRATEGY.normal);
+  const window = RECENCY_WINDOW[diff] || 4;
 
-  if (isPlayerBatting) {
-    // computer is bowling: try to match the batter's likely number
-    const weights = buildWeights(state.playerFreqBatting, state.recentBatting.slice(-6));
-    return weightedSample(weights);
-  }
-  // computer is batting: try to avoid the bowler's likely number
-  const weights = buildWeights(state.playerFreqBowling, state.recentBowling.slice(-6));
+  if (strategy.mode === 'random' || Math.random() > strategy.chance) return randomBotNumber();
+
+  const freqArr = isPlayerBatting ? state.playerFreqBatting : state.playerFreqBowling;
+  const recentArr = isPlayerBatting ? state.recentBatting : state.recentBowling;
+  const weights = buildPoolWeights(freqArr, recentArr.slice(-window));
+
+  if (strategy.mode === 'predict') return weightedPoolSample(weights);
+  // 'avoid' — steer away from the human's likely number
   const maxW = Math.max(...weights);
   const inverted = weights.map((w) => (maxW - w) + 1);
-  return weightedSample(inverted);
+  return weightedPoolSample(inverted);
 }
 
 function numberEmoji(n) {
@@ -607,28 +712,15 @@ function finishMatch() {
     outcome = 'tie';
   }
 
-  // -- persist mode stats --
-  const stats = loadStatsV2();
-  const ms = stats[state.difficulty] || stats.normal;
-  ms.played += 1;
-  if (outcome === 'win') ms.won += 1;
-  else if (outcome === 'lose') ms.lost += 1;
-  else ms.tied += 1;
-  const playerRuns = state.score.player.runs;
-  const playerWicketsTaken = state.score.computer.wkts;
-  const runsConcededByPlayer = state.score.computer.runs;
-  ms.totalRuns += playerRuns;
-  ms.totalWickets += playerWicketsTaken;
-  if (playerRuns > ms.bestScore) ms.bestScore = playerRuns;
-  if (
-    playerWicketsTaken > ms.bestBowlWkts ||
-    (playerWicketsTaken === ms.bestBowlWkts && (ms.bestBowlWkts === 0 ? false : runsConcededByPlayer < ms.bestBowlRuns)) ||
-    (ms.played === 1)
-  ) {
-    ms.bestBowlWkts = playerWicketsTaken;
-    ms.bestBowlRuns = runsConcededByPlayer;
-  }
-  saveStatsV2(stats);
+  // -- persist stats --
+  const bucket = state.tournamentPendingRef ? 'tournamentAI' : state.difficulty;
+  recordMatchStats(bucket, {
+    outcome,
+    runsScored: state.score.player.runs,
+    ballsFaced: state.score.player.balls,
+    wicketsTaken: state.score.computer.wkts,
+    runsConceded: state.score.computer.runs,
+  });
 
   if (outcome === 'win') sfx.win();
 
@@ -762,6 +854,8 @@ function buildTournament(code, size, overs, wickets, difficulty) {
     champion: null,
     eliminated: false,
   };
+  recordTournamentStarted();
+  state.tournament.statsRecorded = false;
   renderTournamentBracket();
   showScreen('tournament-bracket');
 }
@@ -912,6 +1006,7 @@ function tourneyContinue() {
     const winners = winnersOf(currentRound);
     if (winners.length === 1) {
       t.champion = winners[0];
+      if (t.champion.isPlayer && !t.statsRecorded) { recordTournamentWon(); t.statsRecorded = true; }
     } else {
       const nextRound = buildRoundFromEntrants(winners);
       autoSimRound(nextRound, t.overs, t.wickets);
