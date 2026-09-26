@@ -65,10 +65,10 @@
         <span class="menu-card-icon">🏆</span>
       </button>
 
-      <button class="menu-card menu-card--locked" disabled aria-disabled="true" title="Coming soon">
+      <button class="menu-card menu-card--live menu-card--online" data-action="go-online-setup">
         <div class="menu-card-text">
-          <h2>Online Multiplayer</h2>
-          <p>Coming soon — challenge real players</p>
+          <h2>Online Room <span class="badge-new">BETA</span></h2>
+          <p>Real-time 1v1 with a friend on another device — needs Firebase setup once (see README)</p>
         </div>
         <span class="menu-card-icon">🌐</span>
       </button>
@@ -309,6 +309,128 @@
     <div class="champion-banner hidden" id="champion-banner"></div>
   </section>
 
+  <!-- ============ ONLINE ROOM: SETUP ============ -->
+  <section class="screen" id="screen-online-setup">
+    <button class="back-btn" data-action="go-home">← Back</button>
+    <h2 class="screen-title">Online Room <span class="badge-new">BETA</span></h2>
+    <p class="screen-sub">Real-time 1v1 with a friend on a different device.</p>
+
+    <div class="setting-row">
+      <label for="sel-online-overs">Overs</label>
+      <select id="sel-online-overs">
+        <option value="1">1 over</option>
+        <option value="2" selected>2 overs</option>
+        <option value="5">5 overs</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label for="sel-online-wickets">Wickets</label>
+      <select id="sel-online-wickets">
+        <option value="1">1 wicket</option>
+        <option value="2" selected>2 wickets</option>
+        <option value="3">3 wickets</option>
+        <option value="5">5 wickets</option>
+      </select>
+    </div>
+
+    <button class="primary-btn" data-action="online-create">Create room</button>
+
+    <p class="or-line">— or —</p>
+
+    <div class="room-code-row">
+      <input id="online-join-code" maxlength="6" placeholder="ENTER CODE" spellcheck="false" autocapitalize="characters" />
+      <button class="ghost-btn" data-action="online-join">Join</button>
+    </div>
+
+    <p class="mini-note" id="online-status-line"></p>
+  </section>
+
+  <!-- ============ ONLINE ROOM: LOBBY ============ -->
+  <section class="screen" id="screen-online-lobby">
+    <button class="back-btn" data-action="online-leave">← Leave room</button>
+    <h2 class="screen-title">Waiting Room</h2>
+    <div class="room-code-badge">
+      Room Code: <strong id="online-code-display">------</strong>
+      <button class="copy-btn" data-action="online-copy-code" title="Copy code">📋</button>
+    </div>
+
+    <div class="lobby-players" id="lobby-players"></div>
+
+    <button class="primary-btn hidden" id="online-start-btn" data-action="online-start-match">Start match</button>
+    <p class="mini-note" id="lobby-wait-note">Share this code with a friend. Waiting for them to join…</p>
+  </section>
+
+  <!-- ============ ONLINE ROOM: TOSS (simplified, auto) ============ -->
+  <section class="screen" id="screen-online-toss">
+    <h2 class="screen-title">Coin toss</h2>
+    <div class="coin-wrap">
+      <div class="coin" id="online-coin">
+        <div class="coin-face coin-heads">H</div>
+        <div class="coin-face coin-tails">T</div>
+      </div>
+    </div>
+    <p class="toss-result" id="online-toss-result">Flipping…</p>
+  </section>
+
+  <!-- ============ ONLINE ROOM: GAMEPLAY ============ -->
+  <section class="screen" id="screen-online-game">
+    <div class="scoreboard">
+      <div class="team">
+        <span class="team-tag" id="mp-team-a-tag">Player A</span>
+        <span class="team-role" id="mp-team-a-role"></span>
+      </div>
+      <div class="score-center">
+        <div class="big-score" id="mp-big-score">0/0</div>
+        <div class="overs-line" id="mp-overs-line">0.0 / 2.0 ov</div>
+      </div>
+      <div class="team">
+        <span class="team-tag" id="mp-team-b-tag">Player B</span>
+        <span class="team-role" id="mp-team-b-role"></span>
+      </div>
+    </div>
+
+    <p class="target-line hidden" id="mp-target-line"></p>
+    <p class="innings-banner" id="mp-innings-banner">Innings 1</p>
+
+    <div class="hands-arena">
+      <div class="hand-block">
+        <div class="hand-emoji" id="mp-hand-a">✊</div>
+        <span class="hand-number" id="mp-hand-a-number"></span>
+        <span class="hand-label" id="mp-hand-a-label">Opponent</span>
+      </div>
+      <div class="vs-x">✕</div>
+      <div class="hand-block">
+        <div class="hand-emoji" id="mp-hand-b">✊</div>
+        <span class="hand-number" id="mp-hand-b-number"></span>
+        <span class="hand-label" id="mp-hand-b-label">You</span>
+      </div>
+    </div>
+
+    <p class="ball-commentary" id="mp-commentary">&nbsp;</p>
+    <p class="pick-prompt" id="mp-pick-prompt">Pick your number</p>
+    <div class="ball-row" id="mp-ball-row">
+      <button class="ball" data-n="0">0</button>
+      <button class="ball" data-n="1">1</button>
+      <button class="ball" data-n="2">2</button>
+      <button class="ball" data-n="3">3</button>
+      <button class="ball" data-n="4">4</button>
+      <button class="ball" data-n="5">5</button>
+      <button class="ball" data-n="6">6</button>
+    </div>
+  </section>
+
+  <!-- ============ ONLINE ROOM: RESULT ============ -->
+  <section class="screen" id="screen-online-result">
+    <div class="result-card">
+      <span class="result-emoji" id="mp-result-emoji">🏆</span>
+      <h2 id="mp-result-title">Match over</h2>
+      <p id="mp-result-sub"></p>
+      <div class="result-actions">
+        <button class="ghost-btn" data-action="online-leave">Main menu</button>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- ============ SETTINGS MODAL ============ -->
@@ -363,5 +485,9 @@
 <div class="toast" id="toast"></div>
 
 <script src="script.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="multiplayer.js"></script>
 </body>
 </html>

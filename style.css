@@ -127,6 +127,16 @@ body.theme-light .floodlights{display:none;}
   background:linear-gradient(135deg, rgba(232,185,77,0.45), rgba(232,185,77,0.14));
   box-shadow:0 8px 24px rgba(232,185,77,0.2);
 }
+.menu-card--online{
+  background:linear-gradient(135deg, rgba(90,120,220,0.45), rgba(90,120,220,0.14));
+  box-shadow:0 8px 24px rgba(90,120,220,0.2);
+}
+.lobby-players{display:flex; flex-direction:column; gap:10px; margin:20px 0;}
+.player-chip{
+  background:var(--glass); border:1px solid var(--glass-border); border-radius:12px;
+  padding:12px 16px; font-weight:600; font-size:.92rem;
+}
+.player-chip.me{border-color:var(--gold); color:var(--gold);}
 .menu-card--locked{
   background:var(--glass); opacity:.5; cursor:not-allowed;
 }

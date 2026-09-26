@@ -20,8 +20,11 @@ const screens = {
 };
 
 function showScreen(name) {
-  Object.values(screens).forEach((s) => s && s.classList.remove('active'));
-  if (screens[name]) screens[name].classList.add('active');
+  // Query all .screen elements fresh each time so this stays correct even
+  // after multiplayer.js adds more screens dynamically to the page.
+  $$('.screen').forEach((s) => s.classList.remove('active'));
+  const target = screens[name] || document.getElementById(`screen-${name}`);
+  if (target) target.classList.add('active');
   window.scrollTo(0, 0);
 }
 
@@ -742,6 +745,7 @@ function tourneyJoin() {
   buildTournament(raw, size, overs, wickets, difficulty);
 }
 function buildTournament(code, size, overs, wickets, difficulty) {
+  if (!state) state = {}; // Tournament can be opened before any normal match is played
   const rng = mulberry32(hashCode(code));
   const botNames = seededShuffle(TEAM_NAME_POOL, rng).slice(0, size - 1);
   const entrants = [{ name: playerName(), isPlayer: true }, ...botNames.map((n) => ({ name: n, isPlayer: false }))];
