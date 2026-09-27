@@ -251,8 +251,11 @@ function freshState(overs, wickets, difficulty, opponentName) {
     playerFreqBowling: [0, 0, 0, 0, 0, 0, 0],
     recentBatting: [],
     recentBowling: [],
+    botBatPicks: [],
+    botBowlPicks: [],
     locked: false,
-    tournamentPendingRef: null, // {roundIndex, matchIndex} when this match belongs to a tournament
+    tournamentPendingRef: null, // {roundIndex, matchIndex} when this match belongs to the LOCAL vs-AI tournament
+    onlineTournamentRef: null, // {code, roundIndex, matchIndex} when this is a bot-fill fixture inside an ONLINE tournament
   };
 }
 
@@ -310,6 +313,7 @@ document.body.addEventListener('click', (e) => {
   }
 
   if (action === 'go-tournament-home') { showScreen('tournament-home'); }
+  if (action === 'go-tournament-choice') { showScreen('tournament-choice'); }
   if (action === 'tourney-create') { tourneyCreate(); }
   if (action === 'tourney-join') { tourneyJoin(); }
   if (action === 'copy-code') { copyRoomCode(); }
@@ -340,6 +344,13 @@ $$('#settings-tabs .tab').forEach((tab) => {
 
 applyTheme();
 applySoundToggleUI();
+
+window.HC_startOnlineTourneyBotMatch = function (opts) {
+  state = freshState(opts.overs, opts.wickets, 'hard', opts.opponentName);
+  state.onlineTournamentRef = opts.ref;
+  resetTossUI();
+  showScreen('toss');
+};
 
 /* ---------------- TOSS ---------------- */
 function resetTossUI() {
@@ -498,6 +509,26 @@ function renderThisOver() {
                  (aggressive wicket-hunting when bowling;
                   risky/exposed when batting)
 */
+/* ---- adaptive AI ----
+   Bots only ever pick from {3,4,5,6} — never 0, 1 or 2.
+   Bowling and batting each have their own strategy per difficulty:
+     'random'  = ignores the human's pattern entirely
+     'avoid'   = steers AWAY from the human's likely number
+                 (forgiving when bowling = fewer cheap wickets;
+                  safe when batting = hard to dismiss)
+     'predict' = steers TOWARD the human's likely number
+                 (aggressive wicket-hunting when bowling;
+                  risky/exposed when batting)
+   On top of that:
+     - weights are smoothed so no single guess ever becomes near-certain
+       (that's what let people "solve" Hard by noticing it kept repeating
+       one number)
+     - the bot never repeats its own last pick three times running
+     - in innings 2, the bot reads the required run-rate and gets more
+       aggressive (batting) or more relentless (bowling, Hard only) when
+       the chase is tight — simple situational awareness instead of a
+       fixed strategy for the whole match
+*/
 const BOT_POOL = [3, 4, 5, 6];
 const RECENCY_WINDOW = { easy: 3, normal: 4, hard: 8 };
 const BOT_BOWL_STRATEGY = {
@@ -511,7 +542,17 @@ const BOT_BAT_STRATEGY = {
   hard:   { mode: 'avoid',   chance: 0.92 }, // very hard to dismiss
 };
 
-function randomBotNumber() {
+function randomBotNumber(urgency) {
+  // urgency: 1 = must score fast (bias toward 5/6), -1 = comfortably placed
+  // (bias toward 3/4), 0 = no situational pressure, play evenly.
+  if (urgency === 1) {
+    const weighted = [3, 4, 5, 5, 6, 6, 6];
+    return weighted[Math.floor(Math.random() * weighted.length)];
+  }
+  if (urgency === -1) {
+    const weighted = [3, 3, 4, 4, 5, 6];
+    return weighted[Math.floor(Math.random() * weighted.length)];
+  }
   return BOT_POOL[Math.floor(Math.random() * BOT_POOL.length)];
 }
 function buildPoolWeights(freqArr, recentArr) {
@@ -522,6 +563,13 @@ function buildPoolWeights(freqArr, recentArr) {
     const recency = 1 + idx * 0.5; // later entries (more recent) weigh a lot more
     w[poolIdx] += recency;
   });
+  // Smooth away extreme certainty: if one number's weight has run far ahead
+  // of the others (e.g. the human played it six times in a row), compress
+  // the spread with a square-root "temperature" so the bot stays a little
+  // unpredictable instead of calcifying into "always guess the same number".
+  const maxW = Math.max(...w);
+  const minW = Math.min(...w);
+  if (minW > 0 && maxW / minW > 4) return w.map((x) => Math.sqrt(x));
   return w;
 }
 function weightedPoolSample(weights) {
@@ -533,22 +581,65 @@ function weightedPoolSample(weights) {
   }
   return BOT_POOL[weights.length - 1];
 }
+
+// How urgent is the chase, from the bot's point of view, right now?
+// Only meaningful in innings 2 once a target exists.
+function computeChaseUrgency(isPlayerBatting) {
+  if (state.inningsNum !== 2 || state.target == null) return 0;
+  const totalBalls = state.overs * 6;
+  if (!isPlayerBatting) {
+    // bot is batting (chasing the target itself)
+    const s = state.score.computer;
+    const ballsLeft = totalBalls - s.balls;
+    if (ballsLeft <= 0) return 0;
+    const requiredRate = (state.target - s.runs) / ballsLeft;
+    if (requiredRate >= 1.15) return 1;
+    if (requiredRate <= 0.4) return -1;
+    return 0;
+  }
+  // bot is bowling, defending the target against the human's chase
+  const s = state.score.player;
+  const ballsLeft = totalBalls - s.balls;
+  if (ballsLeft <= 0) return 0;
+  const requiredRate = (state.target - s.runs) / ballsLeft;
+  return requiredRate <= 0.4 ? 1 : 0; // human cruising -> bot must be maximally sharp
+}
+
 function pickComputerNumber(isPlayerBatting) {
   const diff = state.difficulty;
   const strategy = isPlayerBatting ? (BOT_BOWL_STRATEGY[diff] || BOT_BOWL_STRATEGY.normal) : (BOT_BAT_STRATEGY[diff] || BOT_BAT_STRATEGY.normal);
-  const window = RECENCY_WINDOW[diff] || 4;
+  const recWindow = RECENCY_WINDOW[diff] || 4;
+  const urgency = computeChaseUrgency(isPlayerBatting);
+  const botHistory = isPlayerBatting ? state.botBowlPicks : state.botBatPicks;
 
-  if (strategy.mode === 'random' || Math.random() > strategy.chance) return randomBotNumber();
+  let effectiveChance = strategy.chance;
+  if (urgency === 1 && strategy.mode === 'predict') effectiveChance = Math.min(0.97, effectiveChance + 0.25);
 
-  const freqArr = isPlayerBatting ? state.playerFreqBatting : state.playerFreqBowling;
-  const recentArr = isPlayerBatting ? state.recentBatting : state.recentBowling;
-  const weights = buildPoolWeights(freqArr, recentArr.slice(-window));
+  let choice;
+  if (strategy.mode === 'random' || Math.random() > effectiveChance) {
+    choice = randomBotNumber(!isPlayerBatting ? urgency : 0);
+  } else {
+    const freqArr = isPlayerBatting ? state.playerFreqBatting : state.playerFreqBowling;
+    const recentArr = isPlayerBatting ? state.recentBatting : state.recentBowling;
+    const weights = buildPoolWeights(freqArr, recentArr.slice(-recWindow));
+    if (strategy.mode === 'predict') {
+      choice = weightedPoolSample(weights);
+    } else {
+      const maxW = Math.max(...weights);
+      const inverted = weights.map((w) => (maxW - w) + 1);
+      choice = weightedPoolSample(inverted);
+    }
+  }
 
-  if (strategy.mode === 'predict') return weightedPoolSample(weights);
-  // 'avoid' — steer away from the human's likely number
-  const maxW = Math.max(...weights);
-  const inverted = weights.map((w) => (maxW - w) + 1);
-  return weightedPoolSample(inverted);
+  // Never let the bot repeat the same number three times running — that
+  // fixed, learnable rhythm was the exact exploit players were finding.
+  if (botHistory.length >= 2 && botHistory[botHistory.length - 1] === choice && botHistory[botHistory.length - 2] === choice) {
+    const alternatives = BOT_POOL.filter((n) => n !== choice);
+    choice = alternatives[Math.floor(Math.random() * alternatives.length)];
+  }
+  botHistory.push(choice);
+  if (botHistory.length > 12) botHistory.shift();
+  return choice;
 }
 
 function numberEmoji(n) {
@@ -713,7 +804,7 @@ function finishMatch() {
   }
 
   // -- persist stats --
-  const bucket = state.tournamentPendingRef ? 'tournamentAI' : state.difficulty;
+  const bucket = (state.tournamentPendingRef || state.onlineTournamentRef) ? 'tournamentAI' : state.difficulty;
   recordMatchStats(bucket, {
     outcome,
     runsScored: state.score.player.runs,
@@ -733,13 +824,28 @@ function finishMatch() {
   $('#rs-innings1').textContent = `${firstRuns}/${state.score[firstKey].wkts}`;
   $('#rs-innings2').textContent = `${secondRuns}/${state.score[secondKey].wkts}`;
 
-  if (state.tournamentPendingRef) {
+  if (state.onlineTournamentRef) {
+    if (typeof window.HC_reportOnlineTourneyMatch === 'function') {
+      window.HC_reportOnlineTourneyMatch(state.onlineTournamentRef, {
+        outcome,
+        playerRuns: state.score.player.runs,
+        playerWkts: state.score.player.wkts,
+        oppRuns: state.score.computer.runs,
+        oppWkts: state.score.computer.wkts,
+      });
+    }
+    $('#result-actions-normal').classList.add('hidden');
+    $('#result-actions-tourney').classList.add('hidden');
+    $('#result-actions-online-tourney').classList.remove('hidden');
+  } else if (state.tournamentPendingRef) {
     applyTournamentMatchResult(outcome);
     $('#result-actions-normal').classList.add('hidden');
+    $('#result-actions-online-tourney').classList.add('hidden');
     $('#result-actions-tourney').classList.remove('hidden');
   } else {
     $('#result-actions-normal').classList.remove('hidden');
     $('#result-actions-tourney').classList.add('hidden');
+    $('#result-actions-online-tourney').classList.add('hidden');
   }
 
   showScreen('result');

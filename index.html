@@ -57,10 +57,10 @@
         <span class="menu-card-icon">🤖</span>
       </button>
 
-      <button class="menu-card menu-card--live menu-card--tourney" data-action="go-tournament-home">
+      <button class="menu-card menu-card--live menu-card--tourney" data-action="go-tournament-choice">
         <div class="menu-card-text">
           <h2>Tournament <span class="badge-new">NEW</span></h2>
-          <p>8 or 16-team knockout — create or join with a room code</p>
+          <p>8 or 16-team knockout — vs AI or vs real players online</p>
         </div>
         <span class="menu-card-icon">🏆</span>
       </button>
@@ -68,7 +68,7 @@
       <button class="menu-card menu-card--live menu-card--online" data-action="go-online-setup">
         <div class="menu-card-text">
           <h2>Online Room <span class="badge-new">BETA</span></h2>
-          <p>Real-time 1v1 with a friend on another device</p>
+          <p>Real-time 1v1 with a friend on another device — needs Firebase setup once (see README)</p>
         </div>
         <span class="menu-card-icon">🌐</span>
       </button>
@@ -225,6 +225,10 @@
         <button class="primary-btn" data-action="tourney-continue">Continue tournament</button>
         <button class="ghost-btn" data-action="go-home">Main menu</button>
       </div>
+
+      <div class="result-actions hidden" id="result-actions-online-tourney">
+        <button class="primary-btn" data-action="online-tourney-back-to-bracket">Back to bracket</button>
+      </div>
     </div>
   </section>
 
@@ -246,11 +250,34 @@
     <div class="stat-grid" id="stat-grid"></div>
   </section>
 
-  <!-- ============ TOURNAMENT HOME ============ -->
-  <section class="screen" id="screen-tournament-home">
+  <!-- ============ TOURNAMENT CHOICE ============ -->
+  <section class="screen" id="screen-tournament-choice">
     <button class="back-btn" data-action="go-home">← Back</button>
     <h2 class="screen-title">Tournament</h2>
-    <p class="screen-sub">Knockout: Quarterfinal → Semifinal → Final (8 teams), or add a Round of 16 (16 teams).</p>
+    <p class="screen-sub">8 or 16-team knockout: Quarterfinal → Semifinal → Final (Round of 16 first if 16 teams).</p>
+
+    <div class="menu-cards">
+      <button class="menu-card menu-card--live" data-action="go-tournament-home">
+        <div class="menu-card-text">
+          <h2>Vs AI</h2>
+          <p>Local, offline — you vs a full bracket of computer opponents</p>
+        </div>
+        <span class="menu-card-icon">🤖</span>
+      </button>
+      <button class="menu-card menu-card--live menu-card--online" data-action="go-tourney-online-setup">
+        <div class="menu-card-text">
+          <h2>Vs Real Players <span class="badge-new">BETA</span></h2>
+          <p>Create or join with a room code — everyone plays their own matches live</p>
+        </div>
+        <span class="menu-card-icon">🌐</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ TOURNAMENT HOME (Vs AI) ============ -->
+  <section class="screen" id="screen-tournament-home">
+    <button class="back-btn" data-action="go-tournament-choice">← Back</button>
+    <h2 class="screen-title">Tournament — Vs AI</h2>
 
     <div class="setting-row">
       <label for="sel-tourney-size">Size</label>
@@ -293,7 +320,7 @@
       <input id="join-code-input" maxlength="6" placeholder="ENTER CODE" spellcheck="false" autocapitalize="characters" />
       <button class="ghost-btn" data-action="tourney-join">Join</button>
     </div>
-    <p class="mini-note">Same code always builds the identical bracket &amp; lineup — handy to compare brackets with a friend. Live cross-device sync needs an online server, which is coming later; for now each device plays its own copy of the bracket.</p>
+    <p class="mini-note">Same code always builds the same bracket &amp; opponent lineup on this device.</p>
   </section>
 
   <!-- ============ TOURNAMENT BRACKET ============ -->
@@ -433,6 +460,139 @@
     </div>
   </section>
 
+  <!-- ============ ONLINE TOURNAMENT: SETUP ============ -->
+  <section class="screen" id="screen-to-setup">
+    <button class="back-btn" data-action="go-tournament-choice">← Back</button>
+    <h2 class="screen-title">Vs Real Players <span class="badge-new">BETA</span></h2>
+
+    <div class="setting-row">
+      <label for="sel-to-size">Size</label>
+      <select id="sel-to-size">
+        <option value="8" selected>8 teams</option>
+        <option value="16">16 teams</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label for="sel-to-overs">Overs / match</label>
+      <select id="sel-to-overs">
+        <option value="1">1 over</option>
+        <option value="2" selected>2 overs</option>
+        <option value="5">5 overs</option>
+      </select>
+    </div>
+    <div class="setting-row">
+      <label for="sel-to-wickets">Wickets / match</label>
+      <select id="sel-to-wickets">
+        <option value="1">1 wicket</option>
+        <option value="2" selected>2 wickets</option>
+        <option value="3">3 wickets</option>
+        <option value="5">5 wickets</option>
+      </select>
+    </div>
+
+    <button class="primary-btn" data-action="to-create">Create tournament</button>
+
+    <p class="or-line">— or —</p>
+
+    <div class="room-code-row">
+      <input id="to-join-code" maxlength="6" placeholder="ENTER CODE" spellcheck="false" autocapitalize="characters" />
+      <button class="ghost-btn" data-action="to-join">Join</button>
+    </div>
+    <p class="mini-note" id="to-status-line"></p>
+  </section>
+
+  <!-- ============ ONLINE TOURNAMENT: LOBBY ============ -->
+  <section class="screen" id="screen-to-lobby">
+    <button class="back-btn" data-action="to-leave">← Leave</button>
+    <h2 class="screen-title">Tournament Lobby</h2>
+    <div class="room-code-badge">
+      Room Code: <strong id="to-code-display">------</strong>
+      <button class="copy-btn" data-action="to-copy-code" title="Copy code">📋</button>
+    </div>
+
+    <div class="lobby-players" id="to-lobby-players"></div>
+
+    <button class="primary-btn hidden" id="to-start-btn" data-action="to-start-tournament">Start tournament</button>
+    <p class="mini-note" id="to-lobby-note">Share this code. Empty slots at start time are filled with Hard-mode bots.</p>
+  </section>
+
+  <!-- ============ ONLINE TOURNAMENT: LIVE BRACKET ============ -->
+  <section class="screen" id="screen-to-bracket">
+    <button class="back-btn" data-action="to-leave">← Leave</button>
+    <h2 class="screen-title">Tournament</h2>
+    <div class="room-code-badge">
+      Room Code: <strong id="to-bracket-code-display">------</strong>
+      <button class="copy-btn" data-action="to-copy-code" title="Copy code">📋</button>
+    </div>
+
+    <div class="bracket-wrap" id="to-bracket-wrap"></div>
+
+    <div id="to-action-area"></div>
+    <div class="champion-banner hidden" id="to-champion-banner"></div>
+  </section>
+
+  <!-- ============ ONLINE TOURNAMENT: BALL-BY-BALL (real vs real) ============ -->
+  <section class="screen" id="screen-to-game">
+    <p class="tourney-banner" id="to-game-banner">Round · vs Opponent</p>
+    <div class="scoreboard">
+      <div class="team">
+        <span class="team-tag" id="to-team-a-tag">Player A</span>
+        <span class="team-role" id="to-team-a-role"></span>
+      </div>
+      <div class="score-center">
+        <div class="big-score" id="to-big-score">0/0</div>
+        <div class="overs-line" id="to-overs-line">0.0 / 2.0 ov</div>
+      </div>
+      <div class="team">
+        <span class="team-tag" id="to-team-b-tag">Player B</span>
+        <span class="team-role" id="to-team-b-role"></span>
+      </div>
+    </div>
+
+    <p class="target-line hidden" id="to-target-line"></p>
+    <p class="innings-banner" id="to-innings-banner">Innings 1</p>
+
+    <div class="hands-arena">
+      <div class="hand-block">
+        <div class="hand-emoji" id="to-hand-a">✊</div>
+        <span class="hand-number" id="to-hand-a-number"></span>
+        <span class="hand-label" id="to-hand-a-label">Opponent</span>
+      </div>
+      <div class="vs-x">✕</div>
+      <div class="hand-block">
+        <div class="hand-emoji" id="to-hand-b">✊</div>
+        <span class="hand-number" id="to-hand-b-number"></span>
+        <span class="hand-label" id="to-hand-b-label">You</span>
+      </div>
+    </div>
+
+    <p class="ball-commentary" id="to-commentary">&nbsp;</p>
+    <p class="pick-prompt" id="to-pick-prompt">Pick your number</p>
+    <div class="ball-row" id="to-ball-row">
+      <button class="ball" data-n="0">0</button>
+      <button class="ball" data-n="1">1</button>
+      <button class="ball" data-n="2">2</button>
+      <button class="ball" data-n="3">3</button>
+      <button class="ball" data-n="4">4</button>
+      <button class="ball" data-n="5">5</button>
+      <button class="ball" data-n="6">6</button>
+    </div>
+
+    <div id="to-forfeit-area"></div>
+  </section>
+
+  <!-- ============ ONLINE TOURNAMENT: MATCH RESULT ============ -->
+  <section class="screen" id="screen-to-result">
+    <div class="result-card">
+      <span class="result-emoji" id="to-result-emoji">🏆</span>
+      <h2 id="to-result-title">Match over</h2>
+      <p id="to-result-sub"></p>
+      <div class="result-actions">
+        <button class="primary-btn" data-action="to-back-to-bracket">Back to bracket</button>
+      </div>
+    </div>
+  </section>
+
 </main>
 
 <!-- ============ SETTINGS MODAL ============ -->
@@ -491,5 +651,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="multiplayer.js"></script>
+<script src="tournament-online.js"></script>
 </body>
 </html>
