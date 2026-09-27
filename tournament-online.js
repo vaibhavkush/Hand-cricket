@@ -274,20 +274,26 @@
       rounds: [round0],
       champion: null,
     });
-    if (typeof window.HC_recordMatchStats === 'function') { /* placeholder hook point if tournament-level stats are added later */ }
+    if (typeof window.HC_recordTournamentStarted === 'function') window.HC_recordTournamentStarted('tournamentOnline');
   }
 
   function tryAdvanceRound() {
     if (!TO.code) return;
     const bracketRef = TO.db.ref(`tournamentRooms/${TO.code}/bracket`);
+    let justCrownedPlayerChampion = false;
     bracketRef.transaction((b) => {
+      justCrownedPlayerChampion = false; // reset on every attempt (transactions can retry)
       if (!b || b.champion) return b;
       const round = b.rounds[b.roundIndex];
       const allDone = round.every((m) => m.status === 'done' || m.status === 'forfeited');
       if (!allDone) return; // nothing to do yet — abort with no change
       if (b.rounds.length > b.roundIndex + 1) return; // someone else already built the next round
       const winners = round.map((m) => (m.winner === 'A' ? m.sideA : m.sideB));
-      if (winners.length === 1) { b.champion = winners[0]; return b; }
+      if (winners.length === 1) {
+        b.champion = winners[0];
+        if (winners[0].id === TO.playerId) justCrownedPlayerChampion = true;
+        return b;
+      }
       const nextRound = [];
       for (let i = 0; i < winners.length; i += 2) {
         const a = winners[i], bb = winners[i + 1];
@@ -300,6 +306,10 @@
       b.rounds.push(nextRound);
       b.roundIndex = b.rounds.length - 1;
       return b;
+    }).then((result) => {
+      if (result && result.committed && justCrownedPlayerChampion && typeof window.HC_recordTournamentWon === 'function') {
+        window.HC_recordTournamentWon('tournamentOnline');
+      }
     }).catch((e) => console.error('advance round failed', e));
   }
 
@@ -489,7 +499,7 @@
     qs('#to-big-score').textContent = `${battingScore.runs}/${battingScore.wkts}`;
     const oversDone = (Math.floor(battingScore.balls / 6) + (battingScore.balls % 6) / 10).toFixed(1);
     qs('#to-overs-line').textContent = `${oversDone} / ${match.overs}.0 ov`;
-    qs('#to-innings-banner').textContent = `Innings ${match.inningsNum} — ${isPlayerBatting ? 'You are batting' : `${oppSide.name} is batting`}`;
+    qs('#to-innings-banner').textContent = `Innings ${match.inningsNum} — ${isPlayerBatting ? 'You are batting now' : 'You are bowling now'}`;
     qs('#to-hand-a-label').textContent = oppSide.name;
     qs('#to-hand-b-label').textContent = TO.playerName;
 
@@ -648,7 +658,7 @@
       const oppId = found.match.sideA.id === TO.playerId ? found.match.sideB.id : found.match.sideA.id;
       const oppScore = match.score[oppId] || { runs: 0, wkts: 0, balls: 0 };
       const outcome = title.indexOf('tie') !== -1 ? 'tie' : (iWon ? 'win' : 'lose');
-      window.HC_recordMatchStats('multiplayer', {
+      window.HC_recordMatchStats('tournamentOnline', {
         outcome, runsScored: myScore.runs, ballsFaced: myScore.balls,
         wicketsTaken: oppScore.wkts, runsConceded: oppScore.runs,
       });
@@ -659,6 +669,25 @@
   function leaveTournament() {
     detachListener(); detachMatchListener();
     TO.code = null; TO.playerId = null; TO.isHost = false; TO.suspendRender = false; TO.room = null;
+  }
+  async function quitMatchForfeit() {
+    if (!confirm('Quit this match? Your opponent will be shown as the winner.')) return;
+    const found = TO.activeMatch;
+    if (found && TO.code) {
+      const matchRef = TO.db.ref(`tournamentRooms/${TO.code}/bracket/rounds/${found.roundIndex}/${found.matchIndex}`);
+      try {
+        await matchRef.transaction((m) => {
+          if (!m || m.status === 'done' || m.status === 'forfeited') return m;
+          const playerIsA = m.sideA.id === TO.playerId;
+          m.winner = playerIsA ? 'B' : 'A';
+          m.status = 'forfeited';
+          return m;
+        });
+      } catch (e) { console.error(e); }
+    }
+    TO.suspendRender = false;
+    detachMatchListener();
+    if (TO.room) renderBracketScreen(TO.room); else showScreenSafe('to-bracket');
   }
   function copyCode() {
     if (!TO.code) return;
@@ -677,6 +706,7 @@
     if (action === 'to-copy-code') copyCode();
     if (action === 'to-leave') { leaveTournament(); showScreenSafe('home'); }
     if (action === 'to-back-to-bracket') { TO.suspendRender = false; if (TO.room) renderBracketScreen(TO.room); }
+    if (action === 'to-quit-match') quitMatchForfeit();
     if (action === 'online-tourney-back-to-bracket') { TO.suspendRender = false; if (TO.room) renderBracketScreen(TO.room); else showScreenSafe('to-bracket'); }
   });
 })();

@@ -68,7 +68,7 @@
       <button class="menu-card menu-card--live menu-card--online" data-action="go-online-setup">
         <div class="menu-card-text">
           <h2>Online Room <span class="badge-new">BETA</span></h2>
-          <p>Real-time 1v1 with a friend on another device</p>
+          <p>Real-time 1v1 with a friend on another device — needs Firebase setup once (see README)</p>
         </div>
         <span class="menu-card-icon">🌐</span>
       </button>
@@ -126,6 +126,7 @@
 
   <!-- ============ TOSS ============ -->
   <section class="screen" id="screen-toss">
+    <button class="back-btn" data-action="go-home">← Back</button>
     <h2 class="screen-title">Toss time</h2>
     <p class="screen-sub" id="toss-settings-line">Call it in the air</p>
 
@@ -154,6 +155,7 @@
 
   <!-- ============ GAMEPLAY ============ -->
   <section class="screen" id="screen-game">
+    <button class="back-btn" data-action="quit-match">← Quit match</button>
     <p class="tourney-banner hidden" id="tourney-banner"></p>
     <div class="scoreboard">
       <button class="gear-btn" data-action="open-settings" title="Settings">⚙️</button>
@@ -241,7 +243,8 @@
       <button class="tab active" data-diff="easy">Easy</button>
       <button class="tab" data-diff="normal">Normal</button>
       <button class="tab" data-diff="hard">Hard</button>
-      <button class="tab" data-diff="tournamentAI">Tournament</button>
+      <button class="tab" data-diff="tournamentAI">Tourney (AI)</button>
+      <button class="tab" data-diff="tournamentOnline">Tourney (Online)</button>
       <button class="tab" data-diff="multiplayer">Multiplayer</button>
     </div>
 
@@ -389,20 +392,36 @@
     <p class="mini-note" id="lobby-wait-note">Share this code with a friend. Waiting for them to join…</p>
   </section>
 
-  <!-- ============ ONLINE ROOM: TOSS (simplified, auto) ============ -->
+  <!-- ============ ONLINE ROOM: TOSS (real heads/tails, synced) ============ -->
   <section class="screen" id="screen-online-toss">
+    <button class="back-btn" data-action="online-leave">← Leave</button>
     <h2 class="screen-title">Coin toss</h2>
+    <p class="screen-sub" id="online-toss-sub">Call it in the air</p>
     <div class="coin-wrap">
       <div class="coin" id="online-coin">
         <div class="coin-face coin-heads">H</div>
         <div class="coin-face coin-tails">T</div>
       </div>
     </div>
-    <p class="toss-result" id="online-toss-result">Flipping…</p>
+
+    <div class="call-row" id="online-call-row">
+      <button class="call-btn" data-online-call="heads">Heads</button>
+      <button class="call-btn" data-online-call="tails">Tails</button>
+    </div>
+
+    <p class="toss-result" id="online-toss-result"></p>
+
+    <div class="bat-bowl-row hidden" id="online-bat-bowl-row">
+      <div class="call-row">
+        <button class="call-btn" data-online-choice="bat">🏏 Bat first</button>
+        <button class="call-btn" data-online-choice="bowl">🤾 Bowl first</button>
+      </div>
+    </div>
   </section>
 
   <!-- ============ ONLINE ROOM: GAMEPLAY ============ -->
   <section class="screen" id="screen-online-game">
+    <button class="back-btn" data-action="online-quit-match">← Quit match</button>
     <div class="scoreboard">
       <div class="team">
         <span class="team-tag" id="mp-team-a-tag">Player A</span>
@@ -533,6 +552,7 @@
 
   <!-- ============ ONLINE TOURNAMENT: BALL-BY-BALL (real vs real) ============ -->
   <section class="screen" id="screen-to-game">
+    <button class="back-btn" data-action="to-quit-match">← Quit (forfeit)</button>
     <p class="tourney-banner" id="to-game-banner">Round · vs Opponent</p>
     <div class="scoreboard">
       <div class="team">

@@ -172,6 +172,7 @@
     MP.roomUnsub = ref.on('value', (snap) => {
       const room = snap.val();
       if (!room) return;
+      MP.room = room;
       if (room.meta.status === 'lobby') renderLobby(room);
       else if (room.meta.status === 'toss') renderOnlineToss(room);
       else if (room.meta.status === 'playing') renderOnlineGame(room);
@@ -209,36 +210,87 @@
     const ids = Object.keys(room.players || {});
     if (ids.length < 2) return;
     const [idA, idB] = ids; // first two joiners play; extra joiners are spectators in this v1
-    const battingFirstId = Math.random() < 0.5 ? idA : idB;
-    const bowlingFirstId = battingFirstId === idA ? idB : idA;
 
     await MP.db.ref(`rooms/${MP.roomCode}/meta/status`).set('toss');
-    await MP.db.ref(`rooms/${MP.roomCode}/match`).set({
+    await MP.db.ref(`rooms/${MP.roomCode}/toss`).set({
       playerAId: idA, playerBId: idB,
-      battingId: battingFirstId, bowlingId: bowlingFirstId,
-      overs: room.meta.overs, wicketsLimit: room.meta.wickets,
-      inningsNum: 1, target: null,
-      score: {
-        [idA]: { runs: 0, wkts: 0, balls: 0 },
-        [idB]: { runs: 0, wkts: 0, balls: 0 },
-      },
-      currentBall: {}, ballSeq: 0, lastResult: null,
+      callerId: idA, call: null, result: null, winnerId: null, choice: null,
     });
   }
 
-  /* ---------------- toss (auto, simplified for v1) ---------------- */
+  function otherIdOf(t, id) { return t.playerAId === id ? t.playerBId : t.playerAId; }
+
+  async function callToss(call) {
+    const code = MP.roomCode;
+    const tossSnap = await MP.db.ref(`rooms/${code}/toss`).once('value');
+    const t = tossSnap.val();
+    if (!t || t.call) return; // already called
+    const landsHeads = Math.random() < 0.5;
+    const result = landsHeads ? 'heads' : 'tails';
+    const winnerId = call === result ? t.callerId : otherIdOf(t, t.callerId);
+    await MP.db.ref(`rooms/${code}/toss`).update({ call, result, winnerId });
+  }
+
+  async function chooseBatBowl(choice) {
+    const code = MP.roomCode;
+    const tossSnap = await MP.db.ref(`rooms/${code}/toss`).once('value');
+    const t = tossSnap.val();
+    if (!t || t.choice) return; // already chosen
+    const battingFirstId = choice === 'bat' ? t.winnerId : otherIdOf(t, t.winnerId);
+    const bowlingFirstId = otherIdOf(t, battingFirstId);
+    await MP.db.ref(`rooms/${code}/toss/choice`).set(choice);
+    const meta = (MP.room && MP.room.meta) || {};
+    await MP.db.ref(`rooms/${code}/match`).set({
+      playerAId: t.playerAId, playerBId: t.playerBId,
+      battingId: battingFirstId, bowlingId: bowlingFirstId,
+      overs: meta.overs || 2, wicketsLimit: meta.wickets || 2,
+      inningsNum: 1, target: null,
+      score: {
+        [t.playerAId]: { runs: 0, wkts: 0, balls: 0 },
+        [t.playerBId]: { runs: 0, wkts: 0, balls: 0 },
+      },
+      currentBall: {}, ballSeq: 0, lastResult: null,
+    });
+    await MP.db.ref(`rooms/${code}/meta/status`).set('playing');
+  }
+
+  /* ---------------- toss (real heads/tails call, synced live) ---------------- */
   function renderOnlineToss(room) {
     showScreenSafe('online-toss');
-    const names = room.players;
-    const battingName = names[room.match.battingId] ? names[room.match.battingId].name : '?';
-    setTimeout(() => {
-      qs('#online-toss-result').textContent = `${battingName} bats first!`;
-    }, 1500);
-    setTimeout(async () => {
-      if (MP.isHost) {
-        await MP.db.ref(`rooms/${MP.roomCode}/meta/status`).set('playing');
+    const t = room.toss;
+    if (!t) return;
+    const isCaller = MP.playerId === t.callerId;
+    const callRow = qs('#online-call-row');
+    const batBowlRow = qs('#online-bat-bowl-row');
+    const resultEl = qs('#online-toss-result');
+    const subEl = qs('#online-toss-sub');
+
+    if (!t.result) {
+      resultEl.textContent = '';
+      batBowlRow.classList.add('hidden');
+      if (isCaller) {
+        callRow.classList.remove('hidden');
+        subEl.textContent = 'Call it in the air';
+      } else {
+        callRow.classList.add('hidden');
+        subEl.textContent = `${nameOf(room, t.callerId)} is calling the toss…`;
       }
-    }, 2600);
+    } else {
+      callRow.classList.add('hidden');
+      const winnerIsMe = t.winnerId === MP.playerId;
+      subEl.textContent = '';
+      resultEl.textContent = `It's ${t.result.toUpperCase()}! ${winnerIsMe ? 'You' : nameOf(room, t.winnerId)} won the toss.`;
+      if (!t.choice) {
+        if (winnerIsMe) {
+          batBowlRow.classList.remove('hidden');
+        } else {
+          batBowlRow.classList.add('hidden');
+          subEl.textContent = `Waiting for ${nameOf(room, t.winnerId)} to choose bat or bowl…`;
+        }
+      } else {
+        batBowlRow.classList.add('hidden');
+      }
+    }
   }
 
   /* ---------------- gameplay ---------------- */
@@ -268,7 +320,7 @@
     qs('#mp-big-score').textContent = `${battingScore.runs}/${battingScore.wkts}`;
     const oversDone = (Math.floor(battingScore.balls / 6) + (battingScore.balls % 6) / 10).toFixed(1);
     qs('#mp-overs-line').textContent = `${oversDone} / ${m.overs}.0 ov`;
-    qs('#mp-innings-banner').textContent = `Innings ${m.inningsNum} — ${isPlayerBatting ? 'You are batting' : `${nameOf(room, oppId)} is batting`}`;
+    qs('#mp-innings-banner').textContent = `Innings ${m.inningsNum} — ${isPlayerBatting ? 'You are batting now' : 'You are bowling now'}`;
     qs('#mp-hand-a-label').textContent = nameOf(room, oppId);
     qs('#mp-hand-b-label').textContent = MP.playerName;
 
@@ -368,6 +420,25 @@
     showScreenSafe('online-result');
     const m = room.match;
     const oppId = opponentId(room);
+
+    if (m.quitBy) {
+      const iQuit = m.quitBy === MP.playerId;
+      qs('#mp-result-emoji').textContent = iQuit ? '😔' : '🏆';
+      qs('#mp-result-title').textContent = iQuit ? 'You forfeited this match.' : `${nameOf(room, m.quitBy)} left — you win!`;
+      qs('#mp-result-sub').textContent = '';
+      if (MP.statsRecordedForCode !== MP.roomCode && typeof window.HC_recordMatchStats === 'function') {
+        MP.statsRecordedForCode = MP.roomCode;
+        const myScore = m.score[MP.playerId] || { runs: 0, wkts: 0, balls: 0 };
+        const oppScore = m.score[oppId] || { runs: 0, wkts: 0, balls: 0 };
+        window.HC_recordMatchStats('multiplayer', {
+          outcome: iQuit ? 'lose' : 'win',
+          runsScored: myScore.runs, ballsFaced: myScore.balls,
+          wicketsTaken: oppScore.wkts, runsConceded: oppScore.runs,
+        });
+      }
+      return;
+    }
+
     const secondBattingId = m.battingId; // after the innings-2 swap this is who batted last
     const firstBattingId = m.firstBattingId;
     const firstRuns = m.firstInningsRuns;
@@ -417,7 +488,19 @@
   function leaveRoom() {
     detachRoomListener();
     MP.roomCode = null; MP.playerId = null; MP.isHost = false; MP.lastRenderedBallSeq = -1;
-    MP.statsRecordedForCode = null;
+    MP.statsRecordedForCode = null; MP.room = null;
+  }
+  async function quitMatchForfeit() {
+    if (!confirm('Quit this match? Your opponent will be shown as the winner.')) return;
+    const code = MP.roomCode;
+    if (code && MP.room && MP.room.match) {
+      try {
+        await MP.db.ref(`rooms/${code}/match/quitBy`).set(MP.playerId);
+        await MP.db.ref(`rooms/${code}/meta/status`).set('done');
+      } catch (e) { console.error(e); }
+    }
+    leaveRoom();
+    showScreenSafe('home');
   }
   function copyRoomCodeMP() {
     if (!MP.roomCode) return;
@@ -435,6 +518,11 @@
 
   /* ---------------- wire up buttons ---------------- */
   document.body.addEventListener('click', (e) => {
+    const callEl = e.target.closest('[data-online-call]');
+    if (callEl) { callToss(callEl.dataset.onlineCall); return; }
+    const choiceEl = e.target.closest('[data-online-choice]');
+    if (choiceEl) { chooseBatBowl(choiceEl.dataset.onlineChoice); return; }
+
     const el = e.target.closest('[data-action]');
     if (!el) return;
     const action = el.dataset.action;
@@ -444,5 +532,6 @@
     if (action === 'online-start-match') startMatch();
     if (action === 'online-copy-code') copyRoomCodeMP();
     if (action === 'online-leave') { leaveRoom(); showScreenSafe('home'); }
+    if (action === 'online-quit-match') quitMatchForfeit();
   });
 })();

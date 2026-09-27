@@ -94,9 +94,9 @@ const sfx = {
   win: () => { tone(523, 0, 0.12); tone(659, 0.12, 0.12); tone(784, 0.24, 0.25); },
 };
 
-/* ---------------- persistent stats (per browser) ---------------- */
+/* ---------------- persistent stats (per browser, optionally synced to the cloud when logged in) ---------------- */
 const STATS_KEY = 'handcricket_stats_v3';
-const STAT_BUCKETS = ['easy', 'normal', 'hard', 'tournamentAI', 'multiplayer'];
+const STAT_BUCKETS = ['easy', 'normal', 'hard', 'tournamentAI', 'tournamentOnline', 'multiplayer'];
 function emptyModeStats() {
   return {
     played: 0, won: 0, lost: 0, tied: 0,
@@ -107,30 +107,37 @@ function emptyModeStats() {
 function emptyTournamentExtra() {
   return { tournamentsPlayed: 0, tournamentsWon: 0 };
 }
+const TOURNAMENT_BUCKETS = ['tournamentAI', 'tournamentOnline'];
 function loadStatsV2() {
   try {
     const raw = localStorage.getItem(STATS_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
     const out = {};
     STAT_BUCKETS.forEach((b) => { out[b] = Object.assign(emptyModeStats(), parsed && parsed[b]); });
-    out.tournamentAI = Object.assign(out.tournamentAI, emptyTournamentExtra(), parsed && parsed.tournamentAI);
+    TOURNAMENT_BUCKETS.forEach((b) => { out[b] = Object.assign(out[b], emptyTournamentExtra(), parsed && parsed[b]); });
     return out;
   } catch (e) {
     const out = {};
     STAT_BUCKETS.forEach((b) => { out[b] = emptyModeStats(); });
-    out.tournamentAI = Object.assign(out.tournamentAI, emptyTournamentExtra());
+    TOURNAMENT_BUCKETS.forEach((b) => { out[b] = Object.assign(out[b], emptyTournamentExtra()); });
     return out;
   }
 }
 function saveStatsV2(s) {
   try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) { /* ignore */ }
+  // If a login system is active and the person is signed in, auth.js sets
+  // these two globals — mirror every save to their cloud profile too.
+  if (window.HC_cloudSyncEnabled && window.HC_currentUID && typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length) {
+    try { firebase.database().ref('users/' + window.HC_currentUID + '/stats').set(s); } catch (e) { console.error('cloud stat sync failed', e); }
+  }
 }
 function strikeRateOf(ms) {
   return ms.ballsFaced > 0 ? ((ms.totalRuns / ms.ballsFaced) * 100).toFixed(1) : '0.0';
 }
 
 /* Shared stat recorder — used by the local vs-computer engine below AND by
-   multiplayer.js (via window.HC_recordMatchStats) for online 1v1 matches. */
+   multiplayer.js / tournament-online.js (via window.HC_recordMatchStats)
+   for online 1v1 and online-tournament matches. */
 function recordMatchStats(bucket, { outcome, runsScored, ballsFaced, wicketsTaken, runsConceded }) {
   const stats = loadStatsV2();
   const ms = stats[bucket] || (stats[bucket] = emptyModeStats());
@@ -154,16 +161,21 @@ function recordMatchStats(bucket, { outcome, runsScored, ballsFaced, wicketsTake
   return stats;
 }
 window.HC_recordMatchStats = recordMatchStats;
-function recordTournamentStarted() {
+
+// bucket must be one of TOURNAMENT_BUCKETS ('tournamentAI' for local Vs-AI
+// tournaments, 'tournamentOnline' for Vs Real Players tournaments).
+function recordTournamentStarted(bucket) {
   const stats = loadStatsV2();
-  stats.tournamentAI.tournamentsPlayed += 1;
+  stats[bucket].tournamentsPlayed += 1;
   saveStatsV2(stats);
 }
-function recordTournamentWon() {
+function recordTournamentWon(bucket) {
   const stats = loadStatsV2();
-  stats.tournamentAI.tournamentsWon += 1;
+  stats[bucket].tournamentsWon += 1;
   saveStatsV2(stats);
 }
+window.HC_recordTournamentStarted = recordTournamentStarted;
+window.HC_recordTournamentWon = recordTournamentWon;
 
 function renderHomeStats() {
   const s = loadStatsV2();
@@ -175,8 +187,17 @@ function renderHomeStats() {
   $('#stat-best').textContent = `best ${best}`;
 }
 renderHomeStats();
+// Exposed so auth.js can refresh the visible numbers right after a cloud/local stats merge.
+window.HC_refreshStatsUI = function () {
+  renderHomeStats();
+  const statsScreen = document.getElementById('screen-stats');
+  if (statsScreen && statsScreen.classList.contains('active')) renderStatsScreen();
+};
 
-const STAT_TAB_LABELS = { easy: 'Easy', normal: 'Normal', hard: 'Hard', tournamentAI: 'Tournament', multiplayer: 'Multiplayer' };
+const STAT_TAB_LABELS = {
+  easy: 'Easy', normal: 'Normal', hard: 'Hard',
+  tournamentAI: 'Tournament (AI)', tournamentOnline: 'Tournament (Online)', multiplayer: 'Multiplayer',
+};
 let statsActiveTab = 'easy';
 function renderStatsScreen() {
   const s = loadStatsV2()[statsActiveTab];
@@ -184,7 +205,8 @@ function renderStatsScreen() {
   const winPct = s.played ? Math.round((s.won / s.played) * 100) : 0;
   $('#stat-summary').textContent = `${STAT_TAB_LABELS[statsActiveTab]} — Matches Won: ${s.won} off ${s.played} (${winPct}%)`;
   const bowlFigure = s.played ? `${s.bestBowlWkts}-${s.bestBowlRuns}` : '—';
-  const extraTournamentBox = statsActiveTab === 'tournamentAI'
+  const isTournamentBucket = TOURNAMENT_BUCKETS.indexOf(statsActiveTab) !== -1;
+  const extraTournamentBox = isTournamentBucket
     ? `<div class="stat-box"><strong>${s.tournamentsWon}/${s.tournamentsPlayed}</strong><span>Tournaments Won</span></div>`
     : '';
   $('#stat-grid').innerHTML = `
@@ -314,6 +336,13 @@ document.body.addEventListener('click', (e) => {
 
   if (action === 'go-tournament-home') { showScreen('tournament-home'); }
   if (action === 'go-tournament-choice') { showScreen('tournament-choice'); }
+  if (action === 'quit-match') {
+    if (confirm('Quit this match? Your progress in it will be lost.')) {
+      state = null;
+      showScreen('home');
+      renderHomeStats();
+    }
+  }
   if (action === 'tourney-create') { tourneyCreate(); }
   if (action === 'tourney-join') { tourneyJoin(); }
   if (action === 'copy-code') { copyRoomCode(); }
@@ -804,7 +833,10 @@ function finishMatch() {
   }
 
   // -- persist stats --
-  const bucket = (state.tournamentPendingRef || state.onlineTournamentRef) ? 'tournamentAI' : state.difficulty;
+  let bucket;
+  if (state.onlineTournamentRef) bucket = 'tournamentOnline';
+  else if (state.tournamentPendingRef) bucket = 'tournamentAI';
+  else bucket = state.difficulty;
   recordMatchStats(bucket, {
     outcome,
     runsScored: state.score.player.runs,
@@ -960,7 +992,7 @@ function buildTournament(code, size, overs, wickets, difficulty) {
     champion: null,
     eliminated: false,
   };
-  recordTournamentStarted();
+  recordTournamentStarted('tournamentAI');
   state.tournament.statsRecorded = false;
   renderTournamentBracket();
   showScreen('tournament-bracket');
@@ -1112,7 +1144,7 @@ function tourneyContinue() {
     const winners = winnersOf(currentRound);
     if (winners.length === 1) {
       t.champion = winners[0];
-      if (t.champion.isPlayer && !t.statsRecorded) { recordTournamentWon(); t.statsRecorded = true; }
+      if (t.champion.isPlayer && !t.statsRecorded) { recordTournamentWon('tournamentAI'); t.statsRecorded = true; }
     } else {
       const nextRound = buildRoundFromEntrants(winners);
       autoSimRound(nextRound, t.overs, t.wickets);
