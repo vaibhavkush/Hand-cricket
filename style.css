@@ -440,3 +440,82 @@ body.theme-light .floodlights{display:none;}
   .ball{font-size:.9rem;}
   .hand-emoji{font-size:2.8rem;}
 }
+
+/* ============ AVATAR SYSTEM ============ */
+.avatar-frame{
+  width:48px; height:48px; border-radius:50%; flex:none; cursor:pointer;
+  background:linear-gradient(135deg,var(--crimson-bright),var(--violet));
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+  border:2px solid var(--glass-border);
+}
+.avatar-frame svg{width:72px; height:72px; margin-top:10px;}
+.avatar-frame-edit-hint{font-size:.6rem; color:var(--ink-dim); text-align:center; margin-top:2px;}
+
+.coin-badge{
+  display:flex; align-items:center; gap:4px; background:var(--glass); border:1px solid var(--glass-border);
+  border-radius:20px; padding:6px 12px; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:.9rem;
+  color:var(--gold);
+}
+
+.avatar-arena{
+  display:flex; align-items:flex-end; justify-content:center; gap:10px;
+  margin-bottom:6px; position:relative;
+}
+.avatar-slot{ width:120px; display:flex; flex-direction:column; align-items:center; }
+.avatar-slot .avatar-svg{ width:100%; height:auto; transition:transform .15s ease; }
+.avatar-slot .avatar-label{ font-size:.72rem; color:var(--ink-dim); margin-top:2px; }
+.umpire-slot{ width:70px; align-self:flex-end; margin-bottom:6px; opacity:.9; }
+.umpire-slot .umpire-svg{ width:100%; height:auto; }
+.avatar-vs-x{ font-size:1rem; color:var(--ink-dim); opacity:.5; align-self:center; margin-bottom:40px; }
+
+/* bat swing */
+.bat-group{ transform:rotate(-20deg); }
+@keyframes swingFour{ 0%{transform:rotate(-20deg);} 50%{transform:rotate(55deg);} 100%{transform:rotate(-20deg);} }
+@keyframes swingSix{ 0%{transform:rotate(-20deg);} 45%{transform:rotate(95deg);} 100%{transform:rotate(-20deg);} }
+.bat-group.swing-four{ animation:swingFour .5s ease-out; }
+.bat-group.swing-six{ animation:swingSix .55s ease-out; }
+
+/* bowling release + wicket cheer */
+.arm-bowl-group{ transform:rotate(0deg); }
+@keyframes bowlRelease{ 0%{transform:rotate(0deg);} 60%{transform:rotate(-70deg);} 100%{transform:rotate(0deg);} }
+.arm-bowl-group.bowl-release{ animation:bowlRelease .5s ease-in-out; }
+@keyframes cheerArm{ 0%{transform:rotate(0deg);} 30%{transform:rotate(-150deg);} 70%{transform:rotate(-150deg);} 100%{transform:rotate(0deg);} }
+.arm-bowl-group.cheer-arm, .arm-balance-group.cheer-arm{ animation:cheerArm .9s ease-in-out; }
+
+@keyframes avatarHop{ 0%,100%{transform:translateY(0);} 40%{transform:translateY(-10px);} }
+.avatar-hop{ animation:avatarHop .5s ease-out; }
+
+/* umpire signals */
+.ump-arm-left, .ump-arm-right{ transform:rotate(0deg); }
+@keyframes umpUp{ 0%{transform:rotate(0deg);} 25%{transform:rotate(-170deg);} 80%{transform:rotate(-170deg);} 100%{transform:rotate(0deg);} }
+.ump-arm-left.ump-up, .ump-arm-right.ump-up{ animation:umpUp 1.4s ease-in-out; }
+@keyframes umpWave{ 0%,100%{transform:rotate(-30deg);} 25%{transform:rotate(-80deg);} 50%{transform:rotate(-30deg);} 75%{transform:rotate(-80deg);} }
+.ump-arm-right.ump-wave{ animation:umpWave 1.4s ease-in-out; }
+
+/* ============ AVATAR EDITOR ============ */
+.editor-preview{
+  display:flex; justify-content:center; margin:10px 0 20px;
+  background:var(--glass); border:1px solid var(--glass-border); border-radius:var(--radius); padding:20px;
+}
+.editor-preview .avatar-svg{ width:160px; height:auto; }
+.editor-pose-toggle{ display:flex; gap:8px; justify-content:center; margin-bottom:18px; }
+.editor-section{ margin-bottom:20px; }
+.editor-section h4{ font-size:.85rem; text-transform:uppercase; letter-spacing:.5px; color:var(--gold); margin:0 0 10px; }
+.swatch-row{ display:flex; gap:10px; flex-wrap:wrap; }
+.swatch{
+  position:relative; width:64px; height:64px; border-radius:14px; border:2px solid var(--glass-border);
+  background:var(--glass); cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:.65rem; color:var(--ink-dim); text-align:center; padding:4px;
+}
+.swatch.selected{ border-color:var(--gold); box-shadow:0 0 0 2px rgba(232,185,77,0.3); }
+.swatch.locked{ opacity:.65; }
+.swatch .lock-badge{
+  position:absolute; top:-6px; right:-6px; background:var(--crimson-bright); color:#fff;
+  border-radius:8px; font-size:.6rem; padding:2px 5px; font-weight:700;
+}
+.name-input-row{ display:flex; gap:10px; }
+.name-input-row input{
+  flex:1; background:var(--glass); border:1px solid var(--glass-border); color:var(--ink);
+  border-radius:12px; padding:12px; font-family:'Rajdhani',sans-serif; font-weight:700; font-size:1rem;
+  text-transform:uppercase; letter-spacing:1px;
+}

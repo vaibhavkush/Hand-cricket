@@ -29,13 +29,14 @@
         </div>
       </div>
       <div class="home-top-actions">
+        <div class="coin-badge">🪙 <span id="coin-balance">0</span></div>
         <button class="icon-btn" data-action="go-stats" title="Stats">📊</button>
         <button class="icon-btn" data-action="open-settings" title="Settings">⚙️</button>
       </div>
     </div>
 
     <div class="player-card">
-      <div class="avatar" id="home-avatar">V</div>
+      <div class="avatar-frame" id="home-avatar-frame" data-action="go-avatar-editor" title="Edit your avatar"></div>
       <div class="player-meta">
         <input id="player-name" maxlength="18" value="" spellcheck="false" />
         <div class="stat-row">
@@ -68,7 +69,7 @@
       <button class="menu-card menu-card--live menu-card--online" data-action="go-online-setup">
         <div class="menu-card-text">
           <h2>Online Room <span class="badge-new">BETA</span></h2>
-          <p>Real-time 1v1 with a friend on another device</p>
+          <p>Real-time 1v1 with a friend on another device — needs Firebase setup once (see README)</p>
         </div>
         <span class="menu-card-icon">🌐</span>
       </button>
@@ -176,17 +177,17 @@
     <p class="target-line hidden" id="target-line"></p>
     <p class="innings-banner" id="innings-banner">Welcome. You are batting.</p>
 
-    <div class="hands-arena">
-      <div class="hand-block">
-        <div class="hand-emoji" id="hand-a">✊</div>
+    <div class="avatar-arena">
+      <div class="avatar-slot" id="avatar-a-slot">
+        <div class="avatar-svg-holder"></div>
         <span class="hand-number" id="hand-a-number"></span>
-        <span class="hand-label" id="hand-a-label">Computer</span>
+        <span class="avatar-label" id="hand-a-label">Computer</span>
       </div>
-      <div class="vs-x">✕</div>
-      <div class="hand-block">
-        <div class="hand-emoji" id="hand-b">✊</div>
+      <div class="umpire-slot" id="umpire-slot"></div>
+      <div class="avatar-slot" id="avatar-b-slot">
+        <div class="avatar-svg-holder"></div>
         <span class="hand-number" id="hand-b-number"></span>
-        <span class="hand-label" id="hand-b-label">You</span>
+        <span class="avatar-label" id="hand-b-label">You</span>
       </div>
     </div>
 
@@ -235,6 +236,43 @@
   </section>
 
   <!-- ============ STATS ============ -->
+  <!-- ============ AVATAR EDITOR ============ -->
+  <section class="screen" id="screen-avatar-editor">
+    <button class="back-btn" data-action="go-home">← Back</button>
+    <h2 class="screen-title">Customize your player</h2>
+
+    <div class="editor-pose-toggle">
+      <button class="tab active" data-editor-pose="batting">Batting look</button>
+      <button class="tab" data-editor-pose="bowling">Bowling look</button>
+    </div>
+
+    <div class="editor-preview" id="editor-preview"></div>
+
+    <div class="editor-section">
+      <h4>Jersey name</h4>
+      <div class="name-input-row">
+        <input id="editor-jersey-name" maxlength="10" placeholder="YOUR NAME" spellcheck="false" />
+      </div>
+    </div>
+
+    <div class="editor-section">
+      <h4>Cap</h4>
+      <div class="swatch-row" id="editor-caps"></div>
+    </div>
+
+    <div class="editor-section">
+      <h4>Hairstyle (shown when Cap is "No Cap")</h4>
+      <div class="swatch-row" id="editor-hair"></div>
+    </div>
+
+    <div class="editor-section">
+      <h4>Tattoo</h4>
+      <div class="swatch-row" id="editor-tattoos"></div>
+    </div>
+
+    <p class="mini-note">🔒 items unlock with coins — tap one to spend coins and own it permanently on this device.</p>
+  </section>
+
   <section class="screen" id="screen-stats">
     <button class="back-btn" data-action="go-home">← Back</button>
     <h2 class="screen-title">Your Stats</h2>
@@ -440,17 +478,17 @@
     <p class="target-line hidden" id="mp-target-line"></p>
     <p class="innings-banner" id="mp-innings-banner">Innings 1</p>
 
-    <div class="hands-arena">
-      <div class="hand-block">
-        <div class="hand-emoji" id="mp-hand-a">✊</div>
+    <div class="avatar-arena">
+      <div class="avatar-slot" id="mp-avatar-a-slot">
+        <div class="avatar-svg-holder"></div>
         <span class="hand-number" id="mp-hand-a-number"></span>
-        <span class="hand-label" id="mp-hand-a-label">Opponent</span>
+        <span class="avatar-label" id="mp-hand-a-label">Opponent</span>
       </div>
-      <div class="vs-x">✕</div>
-      <div class="hand-block">
-        <div class="hand-emoji" id="mp-hand-b">✊</div>
+      <div class="umpire-slot" id="mp-umpire-slot"></div>
+      <div class="avatar-slot" id="mp-avatar-b-slot">
+        <div class="avatar-svg-holder"></div>
         <span class="hand-number" id="mp-hand-b-number"></span>
-        <span class="hand-label" id="mp-hand-b-label">You</span>
+        <span class="avatar-label" id="mp-hand-b-label">You</span>
       </div>
     </div>
 
@@ -572,17 +610,17 @@
     <p class="target-line hidden" id="to-target-line"></p>
     <p class="innings-banner" id="to-innings-banner">Innings 1</p>
 
-    <div class="hands-arena">
-      <div class="hand-block">
-        <div class="hand-emoji" id="to-hand-a">✊</div>
+    <div class="avatar-arena">
+      <div class="avatar-slot" id="to-avatar-a-slot">
+        <div class="avatar-svg-holder"></div>
         <span class="hand-number" id="to-hand-a-number"></span>
-        <span class="hand-label" id="to-hand-a-label">Opponent</span>
+        <span class="avatar-label" id="to-hand-a-label">Opponent</span>
       </div>
-      <div class="vs-x">✕</div>
-      <div class="hand-block">
-        <div class="hand-emoji" id="to-hand-b">✊</div>
+      <div class="umpire-slot" id="to-umpire-slot"></div>
+      <div class="avatar-slot" id="to-avatar-b-slot">
+        <div class="avatar-svg-holder"></div>
         <span class="hand-number" id="to-hand-b-number"></span>
-        <span class="hand-label" id="to-hand-b-label">You</span>
+        <span class="avatar-label" id="to-hand-b-label">You</span>
       </div>
     </div>
 
@@ -666,6 +704,8 @@
 <!-- toast for wicket / six / four -->
 <div class="toast" id="toast"></div>
 
+<script src="coins.js"></script>
+<script src="avatar.js"></script>
 <script src="script.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>

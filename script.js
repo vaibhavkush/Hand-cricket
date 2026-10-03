@@ -243,16 +243,121 @@ function persistPlayerName() {
   if (!v) return;
   try { localStorage.setItem(NAME_KEY, v); } catch (e) { /* ignore */ }
 }
+function renderHomeAvatarFrame() {
+  const frame = $('#home-avatar-frame');
+  if (!frame || !window.HC_Avatar) return;
+  const cfg = window.HC_Avatar.loadConfig();
+  window.HC_Avatar.renderInto(frame, 'batting', cfg);
+}
 function refreshAvatar() {
-  const v = (nameInput.value || 'P').trim();
-  $('#home-avatar').textContent = v.charAt(0).toUpperCase() || 'P';
   persistPlayerName();
+  renderHomeAvatarFrame();
 }
 nameInput.addEventListener('input', refreshAvatar);
 nameInput.addEventListener('blur', persistPlayerName);
 nameInput.addEventListener('change', persistPlayerName);
 refreshAvatar();
 function playerName() { return (nameInput.value || 'You').trim() || 'You'; }
+
+/* ---------------- coins ---------------- */
+function renderCoinBalance() {
+  const el = $('#coin-balance');
+  if (el && window.HC_Coins) el.textContent = window.HC_Coins.getBalance();
+}
+window.HC_onCoinsChanged = renderCoinBalance;
+if (window.HC_Coins) {
+  renderCoinBalance();
+  const bonus = window.HC_Coins.claimDailyBonusIfDue();
+  if (bonus > 0) {
+    setTimeout(() => showToast(`+${bonus} daily bonus! 🪙`, false), 600);
+  }
+}
+
+/* ---------------- AI match entry fee / payout ----------------
+   Only "easy" numbers were specified exactly (entry 5, win 7).
+   Normal/Hard below are a reasonable scaled extrapolation — adjust
+   freely in this table if you want different numbers. */
+const AI_ECONOMY = {
+  easy:   { entry: 5,  win: 7 },
+  normal: { entry: 10, win: 15 },
+  hard:   { entry: 20, win: 35 },
+};
+
+/* ---------------- avatar editor ---------------- */
+let editorPose = 'batting';
+function openAvatarEditor() {
+  const cfg = window.HC_Avatar.loadConfig();
+  $('#editor-jersey-name').value = cfg.name || '';
+  editorPose = 'batting';
+  $$('.editor-pose-toggle .tab').forEach((t) => t.classList.toggle('active', t.dataset.editorPose === 'batting'));
+  renderEditorPreview();
+  renderEditorSwatches();
+}
+function renderEditorPreview() {
+  const cfg = window.HC_Avatar.loadConfig();
+  window.HC_Avatar.renderInto($('#editor-preview'), editorPose, cfg);
+}
+function renderEditorSwatches() {
+  const cfg = window.HC_Avatar.loadConfig();
+  const A = window.HC_Avatar;
+  renderSwatchRow('caps', 'editor-caps', cfg.cap);
+  renderSwatchRow('hair', 'editor-hair', cfg.hair);
+  renderSwatchRow('tattoos', 'editor-tattoos', cfg.tattoo);
+}
+function renderSwatchRow(category, containerId, selectedId) {
+  const A = window.HC_Avatar;
+  const wrap = $(`#${containerId}`);
+  wrap.innerHTML = '';
+  Object.keys(A.CATALOG[category]).forEach((id) => {
+    const item = A.CATALOG[category][id];
+    const unlocked = A.isUnlocked(category, id);
+    const btn = document.createElement('button');
+    btn.className = 'swatch' + (id === selectedId ? ' selected' : '') + (!unlocked ? ' locked' : '');
+    btn.textContent = item.label;
+    if (!unlocked) {
+      const badge = document.createElement('span');
+      badge.className = 'lock-badge';
+      badge.textContent = `🔒${item.cost}`;
+      btn.appendChild(badge);
+    }
+    btn.onclick = () => onSwatchClick(category, id, item);
+    wrap.appendChild(btn);
+  });
+}
+function onSwatchClick(category, id, item) {
+  const A = window.HC_Avatar;
+  if (!A.isUnlocked(category, id)) {
+    const bal = window.HC_Coins.getBalance();
+    if (bal < item.cost) {
+      showToast(`Need ${item.cost} coins — you have ${bal}`, true);
+      return;
+    }
+    if (!confirm(`Unlock "${item.label}" for ${item.cost} coins?`)) return;
+    if (!A.unlockItem(category, id)) { showToast('Could not unlock', true); return; }
+    showToast(`Unlocked ${item.label}! 🎉`, false);
+  }
+  const cfg = A.loadConfig();
+  const key = category === 'caps' ? 'cap' : category === 'tattoos' ? 'tattoo' : 'hair';
+  cfg[key] = id;
+  A.saveConfig(cfg);
+  renderEditorPreview();
+  renderEditorSwatches();
+  renderHomeAvatarFrame();
+}
+$('#editor-jersey-name') && $('#editor-jersey-name').addEventListener('input', (e) => {
+  const cfg = window.HC_Avatar.loadConfig();
+  cfg.name = e.target.value.toUpperCase().slice(0, 10);
+  window.HC_Avatar.saveConfig(cfg);
+  renderEditorPreview();
+  renderHomeAvatarFrame();
+});
+$$('.editor-pose-toggle .tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    editorPose = tab.dataset.editorPose;
+    $$('.editor-pose-toggle .tab').forEach((t) => t.classList.toggle('active', t === tab));
+    renderEditorPreview();
+  });
+});
 
 /* ---------------- single-match game state ---------------- */
 let state = null;
@@ -315,8 +420,14 @@ document.body.addEventListener('click', (e) => {
     const overs = clamp(readIntSelect('sel-overs', 5), 1, 50);
     const wickets = clamp(readIntSelect('sel-wickets', 5), 1, 10);
     const difficulty = readSelectValue('sel-difficulty', 'normal');
+    const econ = AI_ECONOMY[difficulty] || AI_ECONOMY.normal;
+    if (window.HC_Coins && !window.HC_Coins.spendCoins(econ.entry)) {
+      showToast(`Need ${econ.entry} coins to play ${difficulty}`, true);
+      return;
+    }
     state = freshState(overs, wickets, difficulty, 'Computer');
-    $('#toss-settings-line').textContent = `${overs} over${overs === 1 ? '' : 's'} • ${wickets} wicket${wickets === 1 ? '' : 's'} • ${difficulty[0].toUpperCase()}${difficulty.slice(1)} difficulty`;
+    state.economyApplied = true;
+    $('#toss-settings-line').textContent = `${overs} over${overs === 1 ? '' : 's'} • ${wickets} wicket${wickets === 1 ? '' : 's'} • ${difficulty[0].toUpperCase()}${difficulty.slice(1)} difficulty • Entry ${econ.entry} 🪙, win ${econ.win} 🪙`;
     resetTossUI();
     showScreen('toss');
   }
@@ -324,6 +435,7 @@ document.body.addEventListener('click', (e) => {
   if (action === 'rematch') { showScreen('settings'); }
 
   if (action === 'go-stats') { renderStatsScreen(); showScreen('stats'); }
+  if (action === 'go-avatar-editor') { openAvatarEditor(); showScreen('avatar-editor'); }
 
   if (action === 'open-settings') { $('#settings-backdrop').classList.remove('hidden'); }
   if (action === 'close-settings') { $('#settings-backdrop').classList.add('hidden'); }
@@ -460,15 +572,20 @@ function startInnings() {
   setupBallButtons();
 }
 
+const BOT_AVATAR_CONFIG = { cap: 'bandana', hair: 'bald', tattoo: 'none', name: 'CPU' };
+function avatarSlotEl(side) { return side === 'player' ? $('#avatar-b-slot') : $('#avatar-a-slot'); }
+function renderGameAvatars() {
+  if (!window.HC_Avatar) return;
+  const battingKey = currentBattingSideKey();
+  const aHolder = document.querySelector('#avatar-a-slot .avatar-svg-holder');
+  const bHolder = document.querySelector('#avatar-b-slot .avatar-svg-holder');
+  if (aHolder) window.HC_Avatar.renderInto(aHolder, battingKey === 'computer' ? 'batting' : 'bowling', BOT_AVATAR_CONFIG);
+  if (bHolder) window.HC_Avatar.renderInto(bHolder, battingKey === 'player' ? 'batting' : 'bowling', window.HC_Avatar.loadConfig());
+  const umpHolder = $('#umpire-slot');
+  if (umpHolder && !umpHolder.querySelector('svg')) window.HC_Avatar.renderUmpireInto(umpHolder);
+}
+
 function setupBallButtons() {
-  // Reset the hand display here (not in renderGame) so a revealed number
-  // is never overwritten before the player has actually seen it.
-  const handA = $('#hand-a');
-  const handB = $('#hand-b');
-  handA.textContent = '✊';
-  handB.textContent = '✊';
-  handA.classList.remove('reveal');
-  handB.classList.remove('reveal');
   $('#hand-a-number').textContent = '';
   $('#hand-b-number').textContent = '';
 
@@ -513,6 +630,7 @@ function renderGame() {
   $('#hand-a-label').textContent = state.opponentName;
   $('#hand-b-label').textContent = playerName();
 
+  renderGameAvatars();
   renderThisOver();
 }
 
@@ -691,11 +809,6 @@ function onPlayerPick(num, btnEl) {
 
   $$('.ball').forEach((b) => (b.disabled = true));
   btnEl.classList.add('picked');
-
-  const handA = $('#hand-a');
-  const handB = $('#hand-b');
-  handA.classList.add('shaking');
-  handB.classList.add('shaking');
   $('#ball-commentary').innerHTML = '&nbsp;';
 
   const battingKey = currentBattingSideKey();
@@ -713,15 +826,8 @@ function onPlayerPick(num, btnEl) {
   }
 
   setTimeout(() => {
-    handA.classList.remove('shaking');
-    handB.classList.remove('shaking');
-    handA.classList.add('reveal');
-    handB.classList.add('reveal');
-    handA.textContent = numberEmoji(compNum);
-    handB.textContent = numberEmoji(num);
     $('#hand-a-number').textContent = compNum;
     $('#hand-b-number').textContent = num;
-
     resolveBall(num, compNum, isPlayerBatting);
   }, 650);
 }
@@ -738,6 +844,22 @@ function resolveBall(playerNum, compNum, isPlayerBatting) {
   if (isWicket) s.wkts += 1; else s.runs += runs;
 
   state.thisOverPips.push({ isWicket, runs });
+
+  if (window.HC_Avatar) {
+    const battingSlot = avatarSlotEl(battingKey);
+    const bowlingSlot = avatarSlotEl(battingKey === 'player' ? 'computer' : 'player');
+    window.HC_Avatar.playBowlRelease(bowlingSlot);
+    if (isWicket) {
+      window.HC_Avatar.playBowlerCheer(bowlingSlot);
+      window.HC_Avatar.playUmpireSignal($('#umpire-slot'), 'out');
+    } else if (runs === 6) {
+      window.HC_Avatar.playBatSwing(battingSlot, true);
+      window.HC_Avatar.playUmpireSignal($('#umpire-slot'), 'six');
+    } else if (runs === 4) {
+      window.HC_Avatar.playBatSwing(battingSlot, false);
+      window.HC_Avatar.playUmpireSignal($('#umpire-slot'), 'four');
+    }
+  }
 
   const batterLabel = isPlayerBatting ? 'You' : state.opponentName;
   const bowlerLabel = isPlayerBatting ? state.opponentName : 'You';
@@ -846,6 +968,12 @@ function finishMatch() {
   });
 
   if (outcome === 'win') sfx.win();
+
+  if (state.economyApplied && outcome === 'win' && window.HC_Coins) {
+    const econ = AI_ECONOMY[state.difficulty] || AI_ECONOMY.normal;
+    window.HC_Coins.addCoins(econ.win);
+    showToast(`+${econ.win} coins! 🪙`, false);
+  }
 
   const sub = `${firstKey === 'player' ? playerName() : state.opponentName} scored ${firstRuns}/${state.score[firstKey].wkts} — ` +
               `${secondKey === 'player' ? playerName() : state.opponentName} scored ${secondRuns}/${state.score[secondKey].wkts}`;
