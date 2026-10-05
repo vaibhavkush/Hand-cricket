@@ -75,38 +75,55 @@
     return true;
   }
 
-  /* ---------------- SVG building blocks ---------------- */
-  const SKIN = '#e8b589';
+  /* ---------------- SVG building blocks (chibi, gradient-shaded) ---------------- */
+  const SKIN = '#f0bd93';
+  const SKIN_SHADOW = '#d89b6c';
   const HAIR_COLOR = '#2b1d12';
-  const PANTS_COLOR = '#22304f';
-  const JERSEY_TRIM = '#c0392b';
+  const PANTS_COLOR = '#2a3150';
+  const PANTS_SHADOW = '#181e33';
+  const JERSEY_TRIM = '#d93e32';
+  const JERSEY_TRIM_DARK = '#a82a21';
 
+  let uidCounter = 0;
+  function uid(prefix) { return `${prefix}${uidCounter++}`; }
+
+  function faceFeatures() {
+    return `
+      <circle cx="89" cy="60" r="3.6" fill="#2b1d12"/>
+      <circle cx="111" cy="60" r="3.6" fill="#2b1d12"/>
+      <circle cx="90.2" cy="58.4" r="1.1" fill="#fff"/>
+      <circle cx="112.2" cy="58.4" r="1.1" fill="#fff"/>
+      <ellipse cx="79" cy="68" rx="5.5" ry="3.6" fill="#f3a6a6" opacity="0.55"/>
+      <ellipse cx="121" cy="68" rx="5.5" ry="3.6" fill="#f3a6a6" opacity="0.55"/>
+      <path d="M90 72 q10 7 20 0" fill="none" stroke="#9a5a33" stroke-width="2.2" stroke-linecap="round"/>`;
+  }
   function hairShape(hair) {
     if (hair === 'bald') return '';
-    if (hair === 'short') return `<path d="M76 34 a24 24 0 0 1 48 0 l-4 2 a20 20 0 0 0 -40 0 z" fill="${HAIR_COLOR}"/>`;
+    if (hair === 'short') return `<path d="M66 50 a34 34 0 0 1 68 0 l-5 3 a28 28 0 0 0 -58 0 z" fill="${HAIR_COLOR}"/>`;
     if (hair === 'curly') return `
-      <circle cx="80" cy="28" r="7" fill="${HAIR_COLOR}"/>
-      <circle cx="92" cy="22" r="8" fill="${HAIR_COLOR}"/>
-      <circle cx="107" cy="22" r="8" fill="${HAIR_COLOR}"/>
-      <circle cx="120" cy="28" r="7" fill="${HAIR_COLOR}"/>`;
+      <circle cx="74" cy="38" r="9" fill="${HAIR_COLOR}"/>
+      <circle cx="90" cy="29" r="10" fill="${HAIR_COLOR}"/>
+      <circle cx="110" cy="29" r="10" fill="${HAIR_COLOR}"/>
+      <circle cx="126" cy="38" r="9" fill="${HAIR_COLOR}"/>`;
     if (hair === 'long') return `
-      <path d="M76 34 a24 24 0 0 1 48 0 z" fill="${HAIR_COLOR}"/>
-      <path d="M74 36 q-6 24 2 40 l8 -2 q-6 -20 0 -38 z" fill="${HAIR_COLOR}"/>
-      <path d="M126 36 q6 24 -2 40 l-8 -2 q6 -20 0 -38 z" fill="${HAIR_COLOR}"/>`;
+      <path d="M66 50 a34 34 0 0 1 68 0 z" fill="${HAIR_COLOR}"/>
+      <path d="M64 52 q-8 30 3 50 l9 -3 q-7 -26 0 -47 z" fill="${HAIR_COLOR}"/>
+      <path d="M136 52 q8 30 -3 50 l-9 -3 q7 -26 0 -47 z" fill="${HAIR_COLOR}"/>`;
     return '';
   }
   function capShape(cap) {
     const c = CATALOG.caps[cap];
     if (!c || cap === 'none') return '';
     if (cap === 'classic') return `
-      <path d="M74 36 a26 26 0 0 1 52 0 l0 4 l-52 0 z" fill="${c.color}"/>
-      <ellipse cx="112" cy="40" rx="16" ry="5" fill="${c.color}"/>`;
+      <path d="M65 44 a35 35 0 0 1 70 0 l0 4 l-70 0 z" fill="${c.color}"/>
+      <ellipse cx="112" cy="47" rx="20" ry="6" fill="${c.color}"/>
+      <ellipse cx="90" cy="32" rx="14" ry="8" fill="#fff" opacity="0.18"/>`;
     if (cap === 'bandana') return `
-      <path d="M74 32 a26 26 0 0 1 52 0 l-4 8 l-44 0 z" fill="${c.color}"/>
-      <path d="M122 34 l10 10 l-8 2 z" fill="${c.color}"/>`;
+      <path d="M65 40 a35 35 0 0 1 70 0 l-5 8 l-60 0 z" fill="${c.color}"/>
+      <path d="M130 42 l13 12 l-10 3 z" fill="${c.color}"/>`;
     if (cap === 'sun') return `
-      <ellipse cx="100" cy="34" rx="34" ry="8" fill="${c.color}" stroke="#cbb98f" stroke-width="2"/>
-      <path d="M76 34 a24 24 0 0 1 48 0 z" fill="${c.color}"/>`;
+      <ellipse cx="100" cy="42" rx="46" ry="10" fill="${c.color}" stroke="#cbb98f" stroke-width="2"/>
+      <path d="M65 42 a34 34 0 0 1 68 0 z" fill="${c.color}"/>`;
     return '';
   }
   function tattooShape(tattoo, armX, armY) {
@@ -120,99 +137,143 @@
   function nameText(name) {
     const safe = (name || '').toUpperCase().slice(0, 10);
     if (!safe) return '';
-    return `<text x="100" y="98" font-size="11" font-weight="700" fill="${JERSEY_TRIM}" text-anchor="middle" font-family="Rajdhani, sans-serif" letter-spacing="1">${escapeXml(safe)}</text>`;
+    return `<text x="100" y="128" font-size="12" font-weight="700" fill="${JERSEY_TRIM_DARK}" text-anchor="middle" font-family="Rajdhani, sans-serif" letter-spacing="1">${escapeXml(safe)}</text>`;
   }
   function escapeXml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
+  function sharedDefs(skinId, jerseyId, pantsId) {
+    return `<defs>
+      <radialGradient id="${skinId}" cx="38%" cy="32%" r="75%">
+        <stop offset="0%" stop-color="${SKIN}"/><stop offset="100%" stop-color="${SKIN_SHADOW}"/>
+      </radialGradient>
+      <linearGradient id="${jerseyId}" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#e7e7ef"/>
+      </linearGradient>
+      <linearGradient id="${pantsId}" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="${PANTS_COLOR}"/><stop offset="100%" stop-color="${PANTS_SHADOW}"/>
+      </linearGradient>
+    </defs>`;
+  }
 
   function buildBattingSVG(cfg) {
-    const head = cfg.hair === 'bald' && cfg.cap === 'none' ? '' : '';
+    const skinId = uid('skinB'), jerseyId = uid('jerB'), pantsId = uid('panB'), helmId = uid('helB'), batId = uid('batB'), ballId = uid('balB');
     return `
-<svg viewBox="0 0 200 260" class="avatar-svg avatar-batting" xmlns="http://www.w3.org/2000/svg">
-  <ellipse cx="100" cy="246" rx="36" ry="6" fill="#000" opacity="0.18"/>
+<svg viewBox="0 0 200 230" class="avatar-svg avatar-batting" xmlns="http://www.w3.org/2000/svg">
+  ${sharedDefs(skinId, jerseyId, pantsId)}
+  <radialGradient id="${helmId}" cx="35%" cy="25%" r="80%">
+    <stop offset="0%" stop-color="#ef5d4f"/><stop offset="100%" stop-color="${JERSEY_TRIM_DARK}"/>
+  </radialGradient>
+  <linearGradient id="${batId}" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#e8b57a"/><stop offset="55%" stop-color="#d9a461"/><stop offset="100%" stop-color="#a9733a"/>
+  </linearGradient>
+  <ellipse cx="100" cy="220" rx="42" ry="7" fill="#000" opacity="0.18"/>
   <!-- legs + pads -->
-  <rect x="76" y="150" width="20" height="54" rx="8" fill="${PANTS_COLOR}"/>
-  <rect x="104" y="150" width="20" height="54" rx="8" fill="${PANTS_COLOR}"/>
-  <rect x="72" y="176" width="28" height="30" rx="6" fill="#f4f1e8" stroke="${JERSEY_TRIM}" stroke-width="2"/>
-  <rect x="100" y="176" width="28" height="30" rx="6" fill="#f4f1e8" stroke="${JERSEY_TRIM}" stroke-width="2"/>
-  <ellipse cx="86" cy="208" rx="14" ry="7" fill="#1a1a1a"/>
-  <ellipse cx="114" cy="208" rx="14" ry="7" fill="#1a1a1a"/>
+  <rect x="72" y="150" width="24" height="46" rx="11" fill="url(#${pantsId})"/>
+  <rect x="104" y="150" width="24" height="46" rx="11" fill="url(#${pantsId})"/>
+  <rect x="66" y="166" width="34" height="38" rx="12" fill="#f6f2e8" stroke="${JERSEY_TRIM}" stroke-width="2.5"/>
+  <rect x="100" y="166" width="34" height="38" rx="12" fill="#f6f2e8" stroke="${JERSEY_TRIM}" stroke-width="2.5"/>
+  <rect x="70" y="178" width="26" height="5" rx="2.5" fill="${JERSEY_TRIM}" opacity="0.7"/>
+  <rect x="104" y="178" width="26" height="5" rx="2.5" fill="${JERSEY_TRIM}" opacity="0.7"/>
+  <ellipse cx="83" cy="204" rx="17" ry="8" fill="#211a14"/>
+  <ellipse cx="117" cy="204" rx="17" ry="8" fill="#211a14"/>
   <!-- back (offside) arm, behind body -->
-  <g class="arm-back-group" style="transform-origin:128px 76px;">
-    <rect x="122" y="74" width="16" height="42" rx="8" fill="${SKIN}"/>
-    <ellipse cx="130" cy="118" rx="9" ry="8" fill="${JERSEY_TRIM}"/>
-  </g>
-  <!-- bat -->
-  <g class="bat-group" style="transform-origin:122px 112px;">
-    <rect x="117" y="108" width="10" height="20" rx="3" fill="#4a3220"/>
-    <rect x="113" y="124" width="18" height="58" rx="7" fill="#d9a461" stroke="#a9733a" stroke-width="2"/>
+  <g class="arm-back-group" style="transform-origin:140px 114px;">
+    <rect x="132" y="108" width="19" height="42" rx="9.5" fill="url(#${skinId})"/>
   </g>
   <!-- body / jersey -->
-  <rect x="70" y="64" width="60" height="78" rx="18" fill="#ffffff" stroke="#ddd" stroke-width="2"/>
-  <rect x="70" y="64" width="60" height="16" rx="10" fill="${JERSEY_TRIM}"/>
+  <rect x="62" y="92" width="76" height="74" rx="28" fill="url(#${jerseyId})" stroke="#d8d8e2" stroke-width="2"/>
+  <path d="M62 120 a28 28 0 0 1 28 -28 l20 0 a28 28 0 0 1 28 28 z" fill="${JERSEY_TRIM}"/>
   ${nameText(cfg.name)}
-  ${tattooShape(cfg.tattoo, 134, 100)}
   <!-- front (leg-side) arm -->
-  <g class="arm-front-group" style="transform-origin:78px 76px;">
-    <rect x="66" y="74" width="16" height="40" rx="8" fill="${SKIN}"/>
-    <ellipse cx="72" cy="116" rx="9" ry="8" fill="${JERSEY_TRIM}"/>
+  <g class="arm-front-group" style="transform-origin:60px 114px;">
+    <rect x="50" y="108" width="19" height="40" rx="9.5" fill="url(#${skinId})"/>
+    ${tattooShape(cfg.tattoo, 59, 128)}
   </g>
   <!-- head + helmet -->
-  <circle cx="100" cy="46" r="24" fill="${SKIN}"/>
-  <path d="M74 44 a26 26 0 0 1 52 0 l0 6 l-6 0 a20 20 0 0 0 -40 0 l-6 0 z" fill="${JERSEY_TRIM}"/>
-  <rect x="88" y="54" width="24" height="3" fill="#2a2a2a" opacity="0.5"/>
-  <rect x="88" y="60" width="24" height="3" fill="#2a2a2a" opacity="0.5"/>
+  <circle cx="100" cy="58" r="35" fill="url(#${skinId})"/>
+  ${faceFeatures()}
+  <path d="M64 54 a36 36 0 0 1 72 0 l0 10 l-8 0 a28 28 0 0 0 -56 0 l-8 0 z" fill="url(#${helmId})"/>
+  <ellipse cx="84" cy="40" rx="16" ry="9" fill="#fff" opacity="0.22"/>
+  <rect x="80" y="68" width="40" height="4" rx="2" fill="#2a2a2a" opacity="0.55"/>
+  <rect x="80" y="76" width="40" height="4" rx="2" fill="#2a2a2a" opacity="0.55"/>
+  <rect x="80" y="84" width="40" height="4" rx="2" fill="#2a2a2a" opacity="0.4"/>
+  <!-- bat + gloved hands, drawn on top so they read clearly over the body -->
+  <g class="bat-group" style="transform-origin:146px 128px;">
+    <rect x="140" y="112" width="12" height="24" rx="4" fill="#4a3220"/>
+    <rect x="136" y="134" width="20" height="66" rx="8" fill="url(#${batId})" stroke="#8a5e2e" stroke-width="2"/>
+  </g>
+  <ellipse cx="144" cy="150" rx="13" ry="11" fill="#f6f2e8" stroke="${JERSEY_TRIM}" stroke-width="2"/>
+  <ellipse cx="59" cy="148" rx="13" ry="11" fill="#f6f2e8" stroke="${JERSEY_TRIM}" stroke-width="2"/>
 </svg>`;
   }
 
   function buildBowlingSVG(cfg) {
+    const skinId = uid('skinW'), jerseyId = uid('jerW'), pantsId = uid('panW'), ballId = uid('balW');
     return `
-<svg viewBox="0 0 200 260" class="avatar-svg avatar-bowling" xmlns="http://www.w3.org/2000/svg">
-  <ellipse cx="100" cy="246" rx="36" ry="6" fill="#000" opacity="0.18"/>
+<svg viewBox="0 0 200 230" class="avatar-svg avatar-bowling" xmlns="http://www.w3.org/2000/svg">
+  ${sharedDefs(skinId, jerseyId, pantsId)}
+  <radialGradient id="${ballId}" cx="35%" cy="30%" r="75%">
+    <stop offset="0%" stop-color="#ef5d4f"/><stop offset="100%" stop-color="${JERSEY_TRIM_DARK}"/>
+  </radialGradient>
+  <ellipse cx="100" cy="220" rx="42" ry="7" fill="#000" opacity="0.18"/>
   <!-- legs: delivery stride -->
-  <rect x="62" y="150" width="20" height="56" rx="8" fill="${PANTS_COLOR}" transform="rotate(-10 72 150)"/>
-  <rect x="108" y="150" width="20" height="56" rx="8" fill="${PANTS_COLOR}" transform="rotate(14 118 150)"/>
-  <ellipse cx="66" cy="206" rx="13" ry="7" fill="#1a1a1a"/>
-  <ellipse cx="128" cy="208" rx="13" ry="7" fill="#1a1a1a"/>
-  <!-- non-bowling arm, forward for balance -->
-  <g class="arm-balance-group" style="transform-origin:76px 76px;">
-    <rect x="68" y="72" width="16" height="38" rx="8" fill="${SKIN}" transform="rotate(-25 76 76)"/>
-  </g>
+  <rect x="58" y="150" width="23" height="50" rx="10" fill="url(#${pantsId})" transform="rotate(-12 69 150)"/>
+  <rect x="112" y="150" width="23" height="50" rx="10" fill="url(#${pantsId})" transform="rotate(16 123 150)"/>
+  <ellipse cx="62" cy="202" rx="16" ry="8" fill="#211a14"/>
+  <ellipse cx="134" cy="204" rx="16" ry="8" fill="#211a14"/>
   <!-- body / jersey -->
-  <rect x="70" y="64" width="60" height="78" rx="18" fill="#ffffff" stroke="#ddd" stroke-width="2"/>
-  <rect x="70" y="64" width="60" height="16" rx="10" fill="${JERSEY_TRIM}"/>
+  <rect x="62" y="92" width="76" height="74" rx="28" fill="url(#${jerseyId})" stroke="#d8d8e2" stroke-width="2"/>
+  <path d="M62 120 a28 28 0 0 1 28 -28 l20 0 a28 28 0 0 1 28 28 z" fill="${JERSEY_TRIM}"/>
   ${nameText(cfg.name)}
-  ${tattooShape(cfg.tattoo, 134, 100)}
-  <!-- bowling arm + ball, raised back -->
-  <g class="arm-bowl-group" style="transform-origin:124px 76px;">
-    <rect x="118" y="40" width="16" height="42" rx="8" fill="${SKIN}" transform="rotate(10 126 76)"/>
-    <circle class="ball-group" cx="128" cy="36" r="9" fill="#c0392b"/>
-    <path class="ball-group" d="M122 32 q6 4 0 8" fill="none" stroke="#f4d9d9" stroke-width="1.4"/>
-  </g>
   <!-- head -->
-  <circle cx="100" cy="46" r="24" fill="${SKIN}"/>
+  <circle cx="100" cy="58" r="35" fill="url(#${skinId})"/>
+  ${faceFeatures()}
   ${hairShape(cfg.hair)}
   ${capShape(cfg.cap)}
+  <!-- both arms drawn on top so they read clearly over the body -->
+  <g class="arm-balance-group" style="transform-origin:66px 114px;">
+    <rect x="56" y="108" width="19" height="40" rx="9.5" fill="url(#${skinId})" transform="rotate(-28 66 114)"/>
+    <g transform="rotate(-28 66 114)">${tattooShape(cfg.tattoo, 65, 130)}</g>
+  </g>
+  <g class="arm-bowl-group" style="transform-origin:134px 114px;">
+    <rect x="126" y="44" width="19" height="46" rx="9.5" fill="url(#${skinId})" transform="rotate(8 135 114)"/>
+    <circle class="ball-group" cx="137" cy="38" r="11" fill="url(#${ballId})"/>
+    <path class="ball-group" d="M129 33 q8 5 0 10" fill="none" stroke="#f4d9d9" stroke-width="1.6"/>
+  </g>
 </svg>`;
   }
 
   function buildUmpireSVG() {
+    const skinId = uid('skinU'), shirtId = uid('shiU');
     return `
-<svg viewBox="0 0 120 170" class="umpire-svg" xmlns="http://www.w3.org/2000/svg">
-  <ellipse cx="60" cy="160" rx="24" ry="5" fill="#000" opacity="0.15"/>
-  <rect x="44" y="92" width="14" height="50" rx="6" fill="#1c2238"/>
-  <rect x="62" y="92" width="14" height="50" rx="6" fill="#1c2238"/>
-  <rect x="38" y="52" width="44" height="46" rx="14" fill="#2a3150" stroke="#10131f" stroke-width="2"/>
-  <g class="ump-arm-left" style="transform-origin:42px 60px;">
-    <rect x="30" y="58" width="12" height="32" rx="6" fill="#2a3150"/>
+<svg viewBox="0 0 130 190" class="umpire-svg" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="${skinId}" cx="38%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="${SKIN}"/><stop offset="100%" stop-color="${SKIN_SHADOW}"/>
+    </radialGradient>
+    <linearGradient id="${shirtId}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#dfe3ea"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="65" cy="182" rx="28" ry="6" fill="#000" opacity="0.15"/>
+  <rect x="46" y="118" width="15" height="54" rx="7" fill="#15161c"/>
+  <rect x="69" y="118" width="15" height="54" rx="7" fill="#15161c"/>
+  <ellipse cx="53" cy="174" rx="12" ry="6" fill="#0a0a0a"/>
+  <ellipse cx="76" cy="174" rx="12" ry="6" fill="#0a0a0a"/>
+  <rect x="38" y="68" width="54" height="58" rx="20" fill="url(#${shirtId})" stroke="#c7cbd4" stroke-width="2"/>
+  <g class="ump-arm-left" style="transform-origin:44px 80px;">
+    <rect x="30" y="76" width="15" height="38" rx="7.5" fill="url(#${shirtId})" stroke="#c7cbd4" stroke-width="1.5"/>
   </g>
-  <g class="ump-arm-right" style="transform-origin:78px 60px;">
-    <rect x="78" y="58" width="12" height="32" rx="6" fill="#2a3150"/>
-    <circle class="ump-finger" cx="84" cy="56" r="3" fill="${SKIN}" opacity="0"/>
+  <g class="ump-arm-right" style="transform-origin:86px 80px;">
+    <rect x="86" y="76" width="15" height="38" rx="7.5" fill="url(#${shirtId})" stroke="#c7cbd4" stroke-width="1.5"/>
+    <circle class="ump-finger" cx="93" cy="72" r="4" fill="url(#${skinId})" opacity="0"/>
   </g>
-  <circle cx="60" cy="36" r="18" fill="${SKIN}"/>
-  <ellipse cx="60" cy="24" rx="22" ry="7" fill="#f4f1e8" stroke="#cbb98f" stroke-width="1.5"/>
+  <circle cx="65" cy="50" r="24" fill="url(#${skinId})"/>
+  <circle cx="57" cy="52" r="2.6" fill="#2b1d12"/>
+  <circle cx="73" cy="52" r="2.6" fill="#2b1d12"/>
+  <path d="M57 60 q8 5 16 0" fill="none" stroke="#9a5a33" stroke-width="1.8" stroke-linecap="round"/>
+  <ellipse cx="65" cy="30" rx="30" ry="9" fill="#f6f2e8" stroke="#cbb98f" stroke-width="1.5"/>
   <path d="M42 24 a18 18 0 0 1 36 0 z" fill="#f4f1e8"/>
 </svg>`;
   }
