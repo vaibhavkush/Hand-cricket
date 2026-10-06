@@ -98,7 +98,6 @@
       });
       await MP.db.ref(`rooms/${code}/players/${playerId}`).set({
         name, joinedAt: firebase.database.ServerValue.TIMESTAMP,
-        avatarConfig: (window.HC_Avatar ? window.HC_Avatar.loadConfig() : null),
       });
       savePlayerId(code, playerId);
       MP.roomCode = code; MP.playerId = playerId; MP.playerName = name; MP.isHost = true;
@@ -147,7 +146,6 @@
       const name = currentPlayerNameFromHome();
       await MP.db.ref(`rooms/${code}/players/${playerId}`).set({
         name, joinedAt: firebase.database.ServerValue.TIMESTAMP,
-        avatarConfig: (window.HC_Avatar ? window.HC_Avatar.loadConfig() : null),
       });
       savePlayerId(code, playerId);
       MP.roomCode = code; MP.playerId = playerId; MP.playerName = name; MP.isHost = false;
@@ -307,20 +305,6 @@
     return map[n] || '✊';
   }
 
-  function renderMpAvatars(room, m) {
-    if (!window.HC_Avatar) return;
-    const oppId = opponentId(room);
-    const isPlayerBatting = m.battingId === MP.playerId;
-    const aHolder = document.querySelector('#mp-avatar-a-slot .avatar-svg-holder');
-    const bHolder = document.querySelector('#mp-avatar-b-slot .avatar-svg-holder');
-    const oppPlayer = room.players[oppId] || {};
-    const oppCfg = oppPlayer.avatarConfig || { cap: 'classic', hair: 'short', tattoo: 'none', name: (oppPlayer.name || 'OPP').slice(0, 10) };
-    if (aHolder) window.HC_Avatar.renderInto(aHolder, m.battingId === oppId ? 'batting' : 'bowling', oppCfg);
-    if (bHolder) window.HC_Avatar.renderInto(bHolder, isPlayerBatting ? 'batting' : 'bowling', window.HC_Avatar.loadConfig());
-    const umpHolder = qs('#mp-umpire-slot');
-    if (umpHolder && !umpHolder.querySelector('svg')) window.HC_Avatar.renderUmpireInto(umpHolder);
-  }
-
   function renderOnlineGame(room) {
     showScreenSafe('online-game');
     const m = room.match;
@@ -340,11 +324,6 @@
     qs('#mp-hand-a-label').textContent = nameOf(room, oppId);
     qs('#mp-hand-b-label').textContent = MP.playerName;
 
-    if (!MP.avatarsRenderedForBallSeq || MP.avatarsRenderedForBallSeq.inningsNum !== m.inningsNum) {
-      renderMpAvatars(room, m);
-      MP.avatarsRenderedForBallSeq = { inningsNum: m.inningsNum };
-    }
-
     const targetLine = qs('#mp-target-line');
     if (m.inningsNum === 2 && m.target != null) {
       targetLine.classList.remove('hidden');
@@ -360,20 +339,13 @@
       const r = m.lastResult;
       const myNum = r.picks[MP.playerId];
       const oppNum = r.picks[oppId];
+      qs('#mp-hand-b').textContent = numberEmojiMP(myNum);
+      qs('#mp-hand-a').textContent = numberEmojiMP(oppNum);
       qs('#mp-hand-b-number').textContent = myNum;
       qs('#mp-hand-a-number').textContent = oppNum;
       qs('#mp-commentary').textContent = r.isWicket
         ? `Both showed ${r.batterNum} — OUT!`
         : `${nameOf(room, r.battingId)} showed ${r.batterNum} → ${r.runs} run${r.runs === 1 ? '' : 's'}`;
-
-      if (window.HC_Avatar) {
-        const battingSlot = qs(r.battingId === MP.playerId ? '#mp-avatar-b-slot' : '#mp-avatar-a-slot');
-        const bowlingSlot = qs(r.battingId === MP.playerId ? '#mp-avatar-a-slot' : '#mp-avatar-b-slot');
-        window.HC_Avatar.playBowlRelease(bowlingSlot);
-        if (r.isWicket) { window.HC_Avatar.playBowlerCheer(bowlingSlot); window.HC_Avatar.playUmpireSignal(qs('#mp-umpire-slot'), 'out'); }
-        else if (r.runs === 6) { window.HC_Avatar.playBatSwing(battingSlot, true); window.HC_Avatar.playUmpireSignal(qs('#mp-umpire-slot'), 'six'); }
-        else if (r.runs === 4) { window.HC_Avatar.playBatSwing(battingSlot, false); window.HC_Avatar.playUmpireSignal(qs('#mp-umpire-slot'), 'four'); }
-      }
     }
 
     const cb = m.currentBall || {};
