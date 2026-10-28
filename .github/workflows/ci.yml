@@ -1,0 +1,68 @@
+name: CI Validation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Lint & Asset Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify required static assets exist
+        run: |
+          echo "Checking required core files..."
+          REQUIRED_FILES=(
+            "index.html"
+            "style.css"
+            "script.js"
+            "firebase-config.js"
+            "multiplayer.js"
+            "tournament-online.js"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error file=$file::Required file '$file' is missing from repository root."
+              exit 1
+            fi
+            echo "  Found: $file"
+          done
+
+      - name: Validate local script and stylesheet references in index.html
+        run: |
+          echo "Verifying local asset references in index.html..."
+          for asset in "style.css" "script.js" "firebase-config.js" "multiplayer.js" "tournament-online.js"; do
+            if ! grep -q "$asset" index.html; then
+              echo "::error file=index.html::index.html is missing reference to '$asset'."
+              exit 1
+            fi
+            echo "  Referenced: $asset"
+          done
+
+      - name: Validate JavaScript syntax (zero npm dependencies)
+        run: |
+          echo "Validating JavaScript syntax using built-in node --check..."
+          FAILED=0
+          for js_file in *.js; do
+            if [ -f "$js_file" ]; then
+              echo "Checking $js_file..."
+              if ! node --check "$js_file"; then
+                echo "::error file=$js_file::Syntax error detected in $js_file"
+                FAILED=1
+              fi
+            fi
+          done
+          if [ $FAILED -ne 0 ]; then
+            exit 1
+          fi
+          echo "All JavaScript files passed syntax verification."
